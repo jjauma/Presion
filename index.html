@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="date=no">
+<title>Presión Arterial</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Presión">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2563eb">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%232563eb'/%3E%3Cpath d='M90 38c-14 0-26 11-26 26 0 20 26 48 26 48s26-28 26-48c0-15-12-26-26-26z' fill='white'/%3E%3Ccircle cx='90' cy='62' r='10' fill='%232563eb'/%3E%3Ctext x='90' y='150' text-anchor='middle' fill='white' font-family='-apple-system,sans-serif' font-size='22' font-weight='700'%3E120/80%3C/text%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --crisis: #991b1b;
+    --stage2: #dc2626;
+    --stage1: #f97316;
+    --elevated: #eab308;
+    --normal: #16a34a;
+    --normal-bg: #dcfce7;
+    --elevated-bg: #fef9c3;
+    --stage1-bg: #ffedd5;
+    --stage2-bg: #fee2e2;
+    --crisis-bg: #fecaca;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    max-width: 1100px;
+    margin: 0 auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header .title-block { flex: 1 1 200px; }
+  h1 { font-size: 1.6rem; font-weight: 700; }
+  .sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.2s;
+  }
+  .sync-dot.connected { background: var(--success); }
+  .sync-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .header-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .person-selector {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 6px 4px 12px;
+  }
+  .person-selector select {
+    border: none; background: transparent; font-size: 0.95rem;
+    font-family: inherit; padding: 6px 4px; cursor: pointer;
+    font-weight: 500;
+  }
+  .person-selector select:focus { outline: none; }
+  .icon-btn {
+    background: transparent; border: none; cursor: pointer;
+    padding: 6px 8px; border-radius: 6px; color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .icon-btn:hover { background: #f3f4f6; color: var(--text); }
+
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+  }
+  .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+  input, textarea, select {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: white;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .field-full { grid-column: 1 / -1; }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    font-family: inherit;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .btn-secondary { background: #f3f4f6; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+  .btn-danger { background: transparent; color: var(--danger); padding: 6px 10px; }
+  .btn-danger:hover { background: #fee2e2; }
+
+  /* Symptom chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    background: #f3f4f6;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.9rem;
+    transition: all 0.15s;
+  }
+  .chip.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+  .chip input { display: none; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .stat.cat-normal   { background: var(--normal-bg);   border-left-color: var(--normal); }
+  .stat.cat-elevated { background: var(--elevated-bg); border-left-color: var(--elevated); }
+  .stat.cat-stage1   { background: var(--stage1-bg);   border-left-color: var(--stage1); }
+  .stat.cat-stage2   { background: var(--stage2-bg);   border-left-color: var(--stage2); }
+  .stat.cat-crisis   { background: var(--crisis-bg);   border-left-color: var(--crisis); }
+  .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+  .stat-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th:hover { color: var(--text); }
+  th.sorted::after { content: " ↓"; color: var(--primary); }
+  th.sorted.asc::after { content: " ↑"; }
+  tbody tr:hover { background: #f9fafb; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+  }
+  .badge-normal { background: var(--normal); }
+  .badge-elevated { background: var(--elevated); color: #713f12; }
+  .badge-stage1 { background: var(--stage1); }
+  .badge-stage2 { background: var(--stage2); }
+  .badge-crisis { background: var(--crisis); }
+  .symptom-tag {
+    display: inline-block;
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    margin: 1px 2px 1px 0;
+    white-space: nowrap;
+  }
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .chart-container { position: relative; height: 300px; }
+  .table-wrapper { overflow-x: auto; }
+  .notes-cell { max-width: 200px; font-size: 0.85rem; color: var(--muted); }
+
+  /* Chart legend — custom, no auto-link */
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-item span.txt { color: inherit !important; text-decoration: none !important; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Footer actions */
+  footer.actions-footer {
+    margin-top: 24px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    font-size: 0.78rem;
+  }
+  footer.actions-footer button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  footer.actions-footer button:hover { color: var(--primary); }
+  footer.actions-footer .sep { color: var(--border); user-select: none; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { font-size: 1.3rem; margin-bottom: 8px; }
+  .modal p { color: var(--muted); margin-bottom: 16px; font-size: 0.95rem; }
+  .modal ol { padding-left: 20px; margin: 12px 0 20px; }
+  .modal ol li { margin-bottom: 8px; font-size: 0.9rem; }
+  .modal code {
+    background: #f3f4f6;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 0.85em;
+  }
+  .modal .form-group { margin-bottom: 16px; }
+  .modal label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--text); font-size: 0.9rem; }
+  .modal textarea { min-height: 140px; font-family: Menlo, Consolas, monospace; font-size: 0.82rem; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+  .error-msg { color: var(--danger); font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  .help-link {
+    display: block; margin-top: 6px; font-size: 0.8rem;
+    color: var(--primary); cursor: pointer; text-decoration: underline;
+  }
+  details { margin-bottom: 16px; }
+  details summary { cursor: pointer; font-weight: 500; padding: 8px 0; color: var(--primary); }
+
+  .persons-list {
+    list-style: none; padding: 0; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .persons-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+  .persons-list li:last-child { border-bottom: none; }
+  .persons-list li.current { background: #eff6ff; font-weight: 500; }
+  .person-count { color: var(--muted); font-size: 0.82rem; margin-left: 8px; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    h1 { font-size: 1.3rem; }
+    form { grid-template-columns: 1fr 1fr; }
+    .card { padding: 16px; }
+    th, td { padding: 8px 6px; font-size: 0.85rem; }
+    .notes-cell { max-width: 100px; }
+    .modal { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Main app -->
+<div id="app" style="display:none">
+  <header>
+    <div class="title-block">
+      <h1>Presión Arterial</h1>
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Conectando...</span>
+      </div>
+    </div>
+    <div class="header-controls">
+      <div class="person-selector">
+        <select id="personSelect" onchange="selectPerson(this.value)"></select>
+        <button class="icon-btn" onclick="openPersonsModal()" title="Gestionar personas">+</button>
+      </div>
+      <button class="icon-btn" onclick="openSettings()" title="Configuración">⚙️</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Nueva lectura</h2>
+    <form id="readingForm" onsubmit="addReading(event)">
+      <div class="field">
+        <label for="date">Fecha</label>
+        <input type="date" id="date" required>
+      </div>
+      <div class="field">
+        <label for="time">Hora</label>
+        <input type="time" id="time" required>
+      </div>
+      <div class="field">
+        <label for="systolic">Sistólica (alta)</label>
+        <input type="number" id="systolic" min="40" max="300" required placeholder="120" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="diastolic">Diastólica (baja)</label>
+        <input type="number" id="diastolic" min="20" max="200" required placeholder="80" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="pulse">Pulso (ppm)</label>
+        <input type="number" id="pulse" min="20" max="250" placeholder="70" inputmode="numeric">
+      </div>
+      <div class="field field-full">
+        <label>Síntomas</label>
+        <div class="chips" id="symptomChips">
+          <label class="chip"><input type="checkbox" value="Cansada"><span>Cansada</span></label>
+          <label class="chip"><input type="checkbox" value="Mareada"><span>Mareada</span></label>
+          <label class="chip"><input type="checkbox" value="Nerviosa"><span>Nerviosa</span></label>
+          <label class="chip"><input type="checkbox" value="Apagada"><span>Apagada</span></label>
+          <label class="chip"><input type="checkbox" value="Otras" id="chipOtras"><span>Otras</span></label>
+        </div>
+      </div>
+      <div class="field field-full" id="otrasWrap" style="display:none">
+        <label for="otrasInput">Describe otros síntomas</label>
+        <input type="text" id="otrasInput" placeholder="Ej: dolor de cabeza, vista borrosa...">
+      </div>
+      <div class="field field-full">
+        <label for="notes">Notas (opcional)</label>
+        <textarea id="notes" placeholder="Después del café, antes de dormir, medicación tomada..."></textarea>
+      </div>
+      <div class="field">
+        <button type="submit" class="btn-primary" id="addBtn">Añadir lectura</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2>Evolución</h2>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--normal)"></span><span class="txt">Normal</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--elevated)"></span><span class="txt">Elevada</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage1)"></span><span class="txt">HTA 1</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage2)"></span><span class="txt">HTA 2</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--crisis)"></span><span class="txt">Crisis</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Histórico</h2>
+    <div class="table-wrapper">
+      <table id="readingsTable">
+        <thead>
+          <tr>
+            <th data-sort="datetime" class="sorted">Fecha</th>
+            <th data-sort="systolic">Sistólica</th>
+            <th data-sort="diastolic">Diastólica</th>
+            <th data-sort="pulse">Pulso</th>
+            <th data-sort="category">Categoría</th>
+            <th>Síntomas</th>
+            <th>Notas</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="readingsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="actions-footer">
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <span class="sep">·</span>
+    <button onclick="exportJSON()">Backup JSON</button>
+    <span class="sep">·</span>
+    <button onclick="document.getElementById('importFile').click()">Importar JSON</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+  </footer>
+</div>
+
+<!-- Setup modal -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>Configuración inicial</h2>
+    <p>Una sola vez. Después podrás añadir y ver tus lecturas sincronizadas en todos tus dispositivos.</p>
+
+    <details>
+      <summary>📋 Cómo crear tu proyecto de Firebase (paso a paso)</summary>
+      <ol>
+        <li>Abre <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> e inicia sesión con tu cuenta de Google.</li>
+        <li>Haz clic en <strong>"Añadir proyecto"</strong>. Ponle un nombre (ej: <code>mi-presion</code>). Puedes desactivar Google Analytics. Clic en "Crear proyecto".</li>
+        <li>Dentro del proyecto, en el menú izquierdo clic en <strong>"Firestore Database"</strong> → <strong>"Crear base de datos"</strong>. Elige región <code>eur3 (europe-west)</code>. Selecciona <strong>"Iniciar en modo de prueba"</strong>. Clic en "Habilitar".</li>
+        <li>Vuelve a la portada del proyecto (icono ⚙️ → "Configuración del proyecto"). Baja hasta "Tus aplicaciones" y clic en el icono <strong>&lt;/&gt;</strong> (web). Ponle un apodo (ej: <code>presion-web</code>). NO marques hosting. Clic en "Registrar aplicación".</li>
+        <li>Verás un bloque de código con <code>firebaseConfig = { ... }</code>. Copia SOLO el objeto desde <code>{</code> hasta <code>}</code>.</li>
+        <li>Pégalo abajo 👇</li>
+      </ol>
+      <p style="font-size:0.85rem; margin-top:12px;"><strong>⚠️ Sobre seguridad:</strong> el modo de prueba caduca en 30 días. Antes, vuelve a Firestore → Reglas y reemplaza las reglas con <code>allow read, write: if true;</code>.</p>
+    </details>
+
+    <div class="form-group">
+      <label for="firebaseConfig">Configuración de Firebase</label>
+      <textarea id="firebaseConfig" placeholder='{&#10;  "apiKey": "...",&#10;  "authDomain": "...",&#10;  "projectId": "...",&#10;  "storageBucket": "...",&#10;  "messagingSenderId": "...",&#10;  "appId": "..."&#10;}'></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="passphrase">Tu clave personal (inventa una)</label>
+      <input type="text" id="passphrase" placeholder="Ej: mi-salud-2026" autocomplete="off">
+      <span class="help-link" style="cursor:default; text-decoration:none; color:var(--muted)">Úsala igual en todos tus dispositivos para que sincronicen. Si la pierdes, no puedes recuperar los datos.</span>
+    </div>
+
+    <div class="error-msg" id="setupError"></div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="useLocalOnly()">Usar solo localmente</button>
+      <button class="btn-primary" id="connectBtn" onclick="connectFirebase()">Conectar y sincronizar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal">
+    <h2>Configuración</h2>
+    <p>Gestiona la conexión o haz backup.</p>
+    <div id="settingsInfo" style="background:#f3f4f6; padding:12px; border-radius:8px; margin-bottom:16px; font-size:0.9rem;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cerrar</button>
+      <button class="btn-danger" style="border:1px solid var(--danger); border-radius:8px; padding:10px 18px;" onclick="resetConfig()">Cambiar configuración</button>
+    </div>
+  </div>
+</div>
+
+<!-- Persons modal -->
+<div class="modal-overlay" id="personsModal" style="display:none">
+  <div class="modal">
+    <h2>Personas</h2>
+    <p>Puedes guardar lecturas de varias personas. Cambia de persona desde el selector de arriba.</p>
+    <ul class="persons-list" id="personsList"></ul>
+    <div class="form-group" style="margin-top:16px">
+      <label for="newPersonName">Añadir nueva persona</label>
+      <div style="display:flex; gap:8px">
+        <input type="text" id="newPersonName" placeholder="Nombre (ej: Mamá, Ana, Yo)" maxlength="40">
+        <button class="btn-primary" onclick="addPerson()">Añadir</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closePersonsModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CONFIG_KEY = 'bp_sync_config_v1';
+const LOCAL_KEY_V2 = 'bp_data_v2';
+const LOCAL_KEY_V1 = 'bp_readings_v1';
+
+// Data model
+// data = { persons: [{id,name}], readings: [...], selectedPersonId }
+let data = emptyData();
+let sortField = 'datetime';
+let sortAsc = false;
+let chart = null;
+let db = null;
+let docRef = null;
+let unsubscribe = null;
+let syncEnabled = false;
+let remoteVersion = 0;
+
+function emptyData() {
+  return { persons: [], readings: [], selectedPersonId: null };
+}
+
+function newId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('syncText').textContent = text;
+}
+
+// ---------- Migration ----------
+function migrateIfNeeded(raw) {
+  if (!raw) return emptyData();
+  // If already v2 shape
+  if (Array.isArray(raw.persons) && Array.isArray(raw.readings)) {
+    // Upgrade any readings that still have datetime instead of date/time
+    raw.readings = raw.readings.map(upgradeReading);
+    if (!raw.selectedPersonId && raw.persons.length) raw.selectedPersonId = raw.persons[0].id;
+    return raw;
+  }
+  // v1: array of readings or { readings: [...] }
+  const legacy = Array.isArray(raw) ? raw : (Array.isArray(raw.readings) ? raw.readings : []);
+  const personId = newId();
+  return {
+    persons: [{ id: personId, name: 'Yo' }],
+    readings: legacy.map(r => ({ ...upgradeReading(r), personId })),
+    selectedPersonId: personId
+  };
+}
+function upgradeReading(r) {
+  const out = { ...r };
+  if (r.datetime && (!r.date || !r.time)) {
+    const [d, t] = r.datetime.split('T');
+    out.date = d;
+    out.time = (t || '00:00').slice(0, 5);
+    delete out.datetime;
+  }
+  if (!out.symptoms) out.symptoms = [];
+  if (out.symptomsOther === undefined) out.symptomsOther = '';
+  return out;
+}
+
+function loadLocal() {
+  try {
+    const v2 = localStorage.getItem(LOCAL_KEY_V2);
+    if (v2) { data = migrateIfNeeded(JSON.parse(v2)); return; }
+    const v1 = localStorage.getItem(LOCAL_KEY_V1);
+    if (v1) {
+      data = migrateIfNeeded(JSON.parse(v1));
+      saveLocal();
+      localStorage.removeItem(LOCAL_KEY_V1);
+      return;
+    }
+  } catch (e) { /* ignore */ }
+  data = emptyData();
+}
+function saveLocal() {
+  localStorage.setItem(LOCAL_KEY_V2, JSON.stringify(data));
+}
+
+// ---------- Setup ----------
+window.useLocalOnly = function() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ mode: 'local' }));
+  syncEnabled = false;
+  loadLocal();
+  ensureAtLeastOnePerson();
+  showApp();
+  setSyncStatus('', 'Solo local (sin sincronización)');
+};
+
+window.connectFirebase = async function() {
+  const errEl = document.getElementById('setupError');
+  const btn = document.getElementById('connectBtn');
+  errEl.textContent = '';
+  const rawConfig = document.getElementById('firebaseConfig').value.trim();
+  const passphrase = document.getElementById('passphrase').value.trim();
+  if (!rawConfig) { errEl.textContent = 'Pega la configuración de Firebase.'; return; }
+  if (!passphrase || passphrase.length < 4) { errEl.textContent = 'Elige una clave personal de al menos 4 caracteres.'; return; }
+
+  let config;
+  try { config = JSON.parse(rawConfig); }
+  catch (e) {
+    try {
+      const jsonified = rawConfig
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+        .replace(/'/g, '"');
+      config = JSON.parse(jsonified);
+    } catch (e2) {
+      errEl.textContent = 'No puedo leer la configuración. Asegúrate de pegar el objeto completo desde { hasta }.';
+      return;
+    }
+  }
+  if (!config.apiKey || !config.projectId) {
+    errEl.textContent = 'Faltan campos en la configuración (apiKey y projectId son obligatorios).';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Conectando...';
+  try {
+    const hashId = await sha256(passphrase);
+    localStorage.setItem(CONFIG_KEY, JSON.stringify({ mode: 'firebase', config, passphraseHash: hashId }));
+    await startFirebase(config, hashId);
+    // Migrate local data if any and if cloud is empty
+    const localRaw = localStorage.getItem(LOCAL_KEY_V2) || localStorage.getItem(LOCAL_KEY_V1);
+    if (localRaw && data.readings.length === 0 && data.persons.length === 0) {
+      data = migrateIfNeeded(JSON.parse(localRaw));
+      ensureAtLeastOnePerson();
+      await saveToFirebase();
+      localStorage.removeItem(LOCAL_KEY_V1);
+      localStorage.removeItem(LOCAL_KEY_V2);
+      alert('Migrados tus datos locales a la nube.');
+    } else {
+      ensureAtLeastOnePerson();
+    }
+    showApp();
+  } catch (err) {
+    errEl.textContent = 'Error: ' + (err.message || err);
+    btn.disabled = false;
+    btn.textContent = 'Conectar y sincronizar';
+    localStorage.removeItem(CONFIG_KEY);
+  }
+};
+
+async function startFirebase(config, hashId) {
+  const app = initializeApp(config);
+  db = getFirestore(app);
+  try { await enableIndexedDbPersistence(db); } catch (e) {}
+  docRef = doc(db, 'bp_data', hashId);
+  syncEnabled = true;
+  setSyncStatus('syncing', 'Sincronizando...');
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.persons)) {
+          data = migrateIfNeeded({ persons: d.persons, readings: d.readings || [], selectedPersonId: d.selectedPersonId });
+        } else if (Array.isArray(d.readings)) {
+          // legacy cloud shape
+          data = migrateIfNeeded(d.readings);
+        } else {
+          data = emptyData();
+        }
+        remoteVersion = d.version || 0;
+      } else {
+        data = emptyData();
+        remoteVersion = 0;
+      }
+      setSyncStatus('connected', 'Sincronizado ✓');
+      render();
+      if (!resolved) { resolved = true; resolve(); }
+    }, (err) => {
+      setSyncStatus('error', 'Error de conexión');
+      if (!resolved) { resolved = true; reject(err); }
+    });
+    setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 5000);
+  });
+}
+
+async function saveToFirebase() {
+  if (!syncEnabled || !docRef) return;
+  setSyncStatus('syncing', 'Guardando...');
+  try {
+    remoteVersion++;
+    await setDoc(docRef, {
+      persons: data.persons,
+      readings: data.readings,
+      selectedPersonId: data.selectedPersonId,
+      version: remoteVersion,
+      updatedAt: new Date().toISOString()
+    });
+    setSyncStatus('connected', 'Sincronizado ✓');
+  } catch (err) {
+    setSyncStatus('error', 'Error al guardar');
+    console.error(err);
+  }
+}
+
+async function persist() {
+  if (syncEnabled) await saveToFirebase();
+  else saveLocal();
+}
+
+function ensureAtLeastOnePerson() {
+  if (data.persons.length === 0) {
+    const id = newId();
+    data.persons.push({ id, name: 'Yo' });
+    data.selectedPersonId = id;
+  }
+  if (!data.selectedPersonId || !data.persons.find(p => p.id === data.selectedPersonId)) {
+    // Default = last person with a reading, or first person
+    const byLastReading = [...data.persons].sort((a, b) => {
+      const la = lastReadingTimeFor(a.id);
+      const lb = lastReadingTimeFor(b.id);
+      return lb - la;
+    });
+    data.selectedPersonId = byLastReading[0].id;
+  }
+}
+function lastReadingTimeFor(personId) {
+  const arr = data.readings.filter(r => r.personId === personId);
+  if (!arr.length) return 0;
+  return Math.max(...arr.map(r => new Date(r.date + 'T' + r.time).getTime()));
+}
+
+function showApp() {
+  document.getElementById('setupModal').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  setDefaultDateTime();
+  render();
+}
+
+// ---------- Settings ----------
+window.openSettings = function() {
+  const info = document.getElementById('settingsInfo');
+  const cfg = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+  const total = data.readings.length;
+  if (cfg.mode === 'firebase') {
+    info.innerHTML = '<strong>Modo:</strong> Sincronización con Firebase<br>' +
+                     '<strong>Proyecto:</strong> ' + (cfg.config.projectId || '?') + '<br>' +
+                     '<strong>Personas:</strong> ' + data.persons.length + '<br>' +
+                     '<strong>Lecturas totales:</strong> ' + total;
+  } else {
+    info.innerHTML = '<strong>Modo:</strong> Solo local (sin sincronización)<br>' +
+                     '<strong>Personas:</strong> ' + data.persons.length + '<br>' +
+                     '<strong>Lecturas totales:</strong> ' + total;
+  }
+  document.getElementById('settingsModal').style.display = 'flex';
+};
+window.closeSettings = function() {
+  document.getElementById('settingsModal').style.display = 'none';
+};
+window.resetConfig = function() {
+  if (!confirm('¿Cambiar la configuración? Los datos siguen guardados (en Firebase o localmente); solo desconectas esta pestaña.')) return;
+  if (unsubscribe) unsubscribe();
+  localStorage.removeItem(CONFIG_KEY);
+  location.reload();
+};
+
+// ---------- Persons ----------
+window.openPersonsModal = function() {
+  renderPersonsList();
+  document.getElementById('personsModal').style.display = 'flex';
+  document.getElementById('newPersonName').focus();
+};
+window.closePersonsModal = function() {
+  document.getElementById('personsModal').style.display = 'none';
+};
+function renderPersonsList() {
+  const ul = document.getElementById('personsList');
+  ul.innerHTML = data.persons.map(p => {
+    const count = data.readings.filter(r => r.personId === p.id).length;
+    const isCurrent = p.id === data.selectedPersonId;
+    return `<li class="${isCurrent ? 'current' : ''}">
+      <div>
+        <strong>${escapeHtml(p.name)}</strong>
+        <span class="person-count">${count} lecturas</span>
+      </div>
+      <div>
+        <button class="btn-secondary" style="padding:4px 8px; font-size:0.82rem" onclick="renamePerson('${p.id}')">Renombrar</button>
+        ${data.persons.length > 1 ? `<button class="btn-danger" onclick="deletePerson('${p.id}')">Eliminar</button>` : ''}
+      </div>
+    </li>`;
+  }).join('');
+}
+window.addPerson = async function() {
+  const name = document.getElementById('newPersonName').value.trim();
+  if (!name) return;
+  const id = newId();
+  data.persons.push({ id, name });
+  data.selectedPersonId = id;
+  document.getElementById('newPersonName').value = '';
+  await persist();
+  render();
+  renderPersonsList();
+};
+window.renamePerson = async function(id) {
+  const person = data.persons.find(p => p.id === id);
+  if (!person) return;
+  const name = prompt('Nuevo nombre:', person.name);
+  if (!name || !name.trim()) return;
+  person.name = name.trim();
+  await persist();
+  render();
+  renderPersonsList();
+};
+window.deletePerson = async function(id) {
+  const person = data.persons.find(p => p.id === id);
+  if (!person) return;
+  const count = data.readings.filter(r => r.personId === id).length;
+  const msg = count > 0
+    ? `¿Eliminar "${person.name}" y sus ${count} lecturas? No se puede deshacer.`
+    : `¿Eliminar "${person.name}"?`;
+  if (!confirm(msg)) return;
+  data.persons = data.persons.filter(p => p.id !== id);
+  data.readings = data.readings.filter(r => r.personId !== id);
+  ensureAtLeastOnePerson();
+  await persist();
+  render();
+  renderPersonsList();
+};
+window.selectPerson = function(id) {
+  data.selectedPersonId = id;
+  persist();
+  render();
+};
+
+// ---------- Symptom chips ----------
+function setupChipHandlers() {
+  document.querySelectorAll('#symptomChips .chip').forEach(chip => {
+    const input = chip.querySelector('input');
+    input.addEventListener('change', () => {
+      chip.classList.toggle('active', input.checked);
+      if (input.value === 'Otras') {
+        document.getElementById('otrasWrap').style.display = input.checked ? 'flex' : 'none';
+        if (!input.checked) document.getElementById('otrasInput').value = '';
+      }
+    });
+  });
+}
+function getFormSymptoms() {
+  const checked = [];
+  document.querySelectorAll('#symptomChips input:checked').forEach(i => checked.push(i.value));
+  return checked;
+}
+function resetChips() {
+  document.querySelectorAll('#symptomChips input').forEach(i => { i.checked = false; });
+  document.querySelectorAll('#symptomChips .chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('otrasWrap').style.display = 'none';
+  document.getElementById('otrasInput').value = '';
+}
+
+// ---------- Category ----------
+function categorize(sys, dia) {
+  if (sys > 180 || dia > 120) return { key: 'crisis', label: 'Crisis', class: 'badge-crisis' };
+  if (sys >= 140 || dia >= 90)  return { key: 'stage2', label: 'HTA 2', class: 'badge-stage2' };
+  if (sys >= 130 || dia >= 80)  return { key: 'stage1', label: 'HTA 1', class: 'badge-stage1' };
+  if (sys >= 120)               return { key: 'elevated', label: 'Elevada', class: 'badge-elevated' };
+  return { key: 'normal', label: 'Normal', class: 'badge-normal' };
+}
+
+// ---------- Add / delete ----------
+window.addReading = async function(e) {
+  e.preventDefault();
+  const symptoms = getFormSymptoms();
+  const symptomsOther = document.getElementById('otrasInput').value.trim();
+  const reading = {
+    id: newId(),
+    personId: data.selectedPersonId,
+    date: document.getElementById('date').value,
+    time: document.getElementById('time').value,
+    systolic: parseInt(document.getElementById('systolic').value, 10),
+    diastolic: parseInt(document.getElementById('diastolic').value, 10),
+    pulse: document.getElementById('pulse').value ? parseInt(document.getElementById('pulse').value, 10) : null,
+    notes: document.getElementById('notes').value.trim(),
+    symptoms,
+    symptomsOther
+  };
+  data.readings.push(reading);
+  await persist();
+  document.getElementById('readingForm').reset();
+  resetChips();
+  setDefaultDateTime();
+  render();
+};
+
+window.deleteReading = async function(id) {
+  if (!confirm('¿Eliminar esta lectura?')) return;
+  data.readings = data.readings.filter(r => r.id !== id);
+  await persist();
+  render();
+};
+
+// ---------- Sort ----------
+window.setSort = function(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = false; }
+  render();
+};
+function currentReadings() {
+  return data.readings.filter(r => r.personId === data.selectedPersonId);
+}
+function sortedReadings() {
+  const arr = currentReadings();
+  arr.sort((a, b) => {
+    let va, vb;
+    if (sortField === 'category') {
+      const order = { normal: 1, elevated: 2, stage1: 3, stage2: 4, crisis: 5 };
+      va = order[categorize(a.systolic, a.diastolic).key];
+      vb = order[categorize(b.systolic, b.diastolic).key];
+    } else if (sortField === 'datetime') {
+      va = new Date(a.date + 'T' + a.time).getTime();
+      vb = new Date(b.date + 'T' + b.time).getTime();
+    } else {
+      va = a[sortField]; vb = b[sortField];
+      if (va == null) va = -Infinity;
+      if (vb == null) vb = -Infinity;
+    }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  return arr;
+}
+
+// ---------- Render ----------
+function render() {
+  renderPersonSelector();
+  renderTable();
+  renderStats();
+  renderChart();
+}
+function renderPersonSelector() {
+  const sel = document.getElementById('personSelect');
+  sel.innerHTML = data.persons.map(p =>
+    `<option value="${p.id}" ${p.id === data.selectedPersonId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
+}
+function formatDate(date, time) {
+  const d = new Date(date + 'T' + (time || '00:00'));
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+         ' ' + (time || '');
+}
+function symptomsHtml(r) {
+  const items = [...(r.symptoms || [])];
+  if (r.symptomsOther) {
+    const idx = items.indexOf('Otras');
+    if (idx !== -1) items.splice(idx, 1, 'Otras: ' + r.symptomsOther);
+  }
+  return items.map(s => `<span class="symptom-tag">${escapeHtml(s)}</span>`).join('');
+}
+function renderTable() {
+  const tbody = document.getElementById('readingsBody');
+  const rows = sortedReadings();
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.sort === sortField);
+    th.classList.toggle('asc', th.dataset.sort === sortField && sortAsc);
+  });
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Aún no hay lecturas para esta persona. Añade la primera arriba.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const cat = categorize(r.systolic, r.diastolic);
+    return `<tr>
+      <td>${escapeHtml(formatDate(r.date, r.time))}</td>
+      <td><strong>${r.systolic}</strong></td>
+      <td><strong>${r.diastolic}</strong></td>
+      <td>${r.pulse ?? '—'}</td>
+      <td><span class="badge ${cat.class}">${cat.label}</span></td>
+      <td>${symptomsHtml(r)}</td>
+      <td class="notes-cell">${escapeHtml(r.notes || '')}</td>
+      <td><button class="btn-danger" onclick="deleteReading('${r.id}')">Eliminar</button></td>
+    </tr>`;
+  }).join('');
+}
+function renderStats() {
+  const container = document.getElementById('stats');
+  const rs = currentReadings();
+  if (rs.length === 0) { container.innerHTML = ''; return; }
+  const avg = arr => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  const sys = rs.map(r => r.systolic);
+  const dia = rs.map(r => r.diastolic);
+  const pulses = rs.filter(r => r.pulse).map(r => r.pulse);
+  const last = [...rs].sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time))[0];
+  const lastCat = categorize(last.systolic, last.diastolic);
+  const avgCat = categorize(avg(sys), avg(dia));
+  const maxSysCat = categorize(Math.max(...sys), 0);
+  const maxDiaCat = categorize(0, Math.max(...dia));
+  container.innerHTML = `
+    <div class="stat cat-${lastCat.key}">
+      <div class="stat-label">Última lectura</div>
+      <div class="stat-value">${last.systolic}/${last.diastolic}</div>
+      <div class="stat-sub"><span class="badge ${lastCat.class}">${lastCat.label}</span></div>
+    </div>
+    <div class="stat cat-${avgCat.key}">
+      <div class="stat-label">Promedio</div>
+      <div class="stat-value">${avg(sys)}/${avg(dia)}</div>
+      <div class="stat-sub">sobre ${rs.length} lecturas</div>
+    </div>
+    <div class="stat cat-${maxSysCat.key}">
+      <div class="stat-label">Máximo sistólica</div>
+      <div class="stat-value">${Math.max(...sys)}</div>
+      <div class="stat-sub">mínimo ${Math.min(...sys)}</div>
+    </div>
+    <div class="stat cat-${maxDiaCat.key}">
+      <div class="stat-label">Máximo diastólica</div>
+      <div class="stat-value">${Math.max(...dia)}</div>
+      <div class="stat-sub">mínimo ${Math.min(...dia)}</div>
+    </div>
+    ${pulses.length ? `
+    <div class="stat">
+      <div class="stat-label">Pulso medio</div>
+      <div class="stat-value">${avg(pulses)}</div>
+      <div class="stat-sub">rango ${Math.min(...pulses)}–${Math.max(...pulses)}</div>
+    </div>` : ''}
+  `;
+}
+function renderChart() {
+  const ctx = document.getElementById('chart').getContext('2d');
+  const rows = [...currentReadings()].sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+  const labels = rows.map(r => formatDate(r.date, r.time));
+  const sys = rows.map(r => r.systolic);
+  const dia = rows.map(r => r.diastolic);
+  const pulse = rows.map(r => r.pulse);
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Sistólica', data: sys, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.25, pointRadius: 3 },
+        { label: 'Diastólica', data: dia, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', tension: 0.25, pointRadius: 3 },
+        { label: 'Pulso', data: pulse, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.1)', tension: 0.25, pointRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
+// ---------- Export / Import ----------
+window.exportCSV = function() {
+  if (data.readings.length === 0) { alert('No hay datos que exportar.'); return; }
+  const header = ['Persona', 'Fecha', 'Hora', 'Sistólica', 'Diastólica', 'Pulso', 'Categoría', 'Síntomas', 'Notas'];
+  const pname = id => (data.persons.find(p => p.id === id) || {}).name || '';
+  const rows = [...data.readings].sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time))
+    .map(r => {
+      const cat = categorize(r.systolic, r.diastolic);
+      const syms = [...(r.symptoms || [])];
+      if (r.symptomsOther) {
+        const i = syms.indexOf('Otras');
+        if (i !== -1) syms.splice(i, 1, 'Otras: ' + r.symptomsOther);
+      }
+      return [pname(r.personId), r.date, r.time, r.systolic, r.diastolic, r.pulse ?? '', cat.label, syms.join('; '), (r.notes || '').replace(/"/g, '""')];
+    });
+  const csv = [header, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
+  downloadFile('presion-arterial-' + todayStr() + '.csv', csv, 'text/csv');
+};
+window.exportJSON = function() {
+  const payload = { version: 2, exportedAt: new Date().toISOString(), ...data };
+  downloadFile('presion-arterial-backup-' + todayStr() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+};
+window.importJSON = async function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const incoming = migrateIfNeeded(parsed);
+      const mode = confirm('¿Fusionar con los datos actuales?\n\nAceptar = fusionar\nCancelar = reemplazar todo');
+      if (mode) {
+        const existingPersons = new Set(data.persons.map(p => p.id));
+        incoming.persons.forEach(p => { if (!existingPersons.has(p.id)) data.persons.push(p); });
+        const existingReadings = new Set(data.readings.map(r => r.id));
+        incoming.readings.forEach(r => { if (!existingReadings.has(r.id)) data.readings.push(r); });
+      } else {
+        data = incoming;
+      }
+      ensureAtLeastOnePerson();
+      await persist();
+      render();
+      alert('Importación completada.');
+    } catch (err) {
+      alert('Error al importar: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+};
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function setDefaultDateTime() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('time').value = `${hh}:${mi}`;
+}
+
+// ---------- Init ----------
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => setSort(th.dataset.sort));
+});
+setupChipHandlers();
+
+async function init() {
+  const saved = localStorage.getItem(CONFIG_KEY);
+  if (!saved) return; // show setup modal
+  try {
+    const cfg = JSON.parse(saved);
+    if (cfg.mode === 'firebase') {
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('syncing', 'Conectando...');
+      try {
+        await startFirebase(cfg.config, cfg.passphraseHash);
+        ensureAtLeastOnePerson();
+        setDefaultDateTime();
+        render();
+      } catch (e) {
+        setSyncStatus('error', 'Error de conexión. Revisa configuración.');
+        alert('Error al conectar con Firebase: ' + e.message + '\n\nPuedes revisar la configuración desde ⚙️.');
+      }
+    } else if (cfg.mode === 'local') {
+      syncEnabled = false;
+      loadLocal();
+      ensureAtLeastOnePerson();
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('', 'Solo local');
+      setDefaultDateTime();
+      render();
+    }
+  } catch (e) { console.error(e); }
+}
+
+init();
+</script>
+
+</body>
+</html>
