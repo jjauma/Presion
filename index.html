@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Presión Arterial</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Presión">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#2563eb">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%232563eb'/%3E%3Cpath d='M90 38c-14 0-26 11-26 26 0 20 26 48 26 48s26-28 26-48c0-15-12-26-26-26z' fill='white'/%3E%3Ccircle cx='90' cy='62' r='10' fill='%232563eb'/%3E%3Ctext x='90' y='150' text-anchor='middle' fill='white' font-family='-apple-system,sans-serif' font-size='22' font-weight='700'%3E120/80%3C/text%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --crisis: #991b1b;
+    --stage2: #dc2626;
+    --stage1: #f97316;
+    --elevated: #eab308;
+    --normal: #16a34a;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    max-width: 1100px;
+    margin: 0 auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 { font-size: 1.6rem; font-weight: 700; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+  .sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.2s;
+  }
+  .sync-dot.connected { background: var(--success); }
+  .sync-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--border);
+  }
+  .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+  input, textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: white;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+  .field-notes { grid-column: 1 / -1; }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    font-family: inherit;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .btn-secondary { background: #f3f4f6; color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+  .btn-danger { background: transparent; color: var(--danger); padding: 6px 10px; }
+  .btn-danger:hover { background: #fee2e2; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+  .stat-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  th {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th:hover { color: var(--text); }
+  th.sorted::after { content: " ↓"; color: var(--primary); }
+  th.sorted.asc::after { content: " ↑"; }
+  tbody tr:hover { background: #f9fafb; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+  }
+  .badge-normal { background: var(--normal); }
+  .badge-elevated { background: var(--elevated); color: #713f12; }
+  .badge-stage1 { background: var(--stage1); }
+  .badge-stage2 { background: var(--stage2); }
+  .badge-crisis { background: var(--crisis); }
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .chart-container { position: relative; height: 300px; }
+  .table-wrapper { overflow-x: auto; }
+  .notes-cell { max-width: 200px; font-size: 0.85rem; color: var(--muted); }
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Setup modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { font-size: 1.3rem; margin-bottom: 8px; }
+  .modal p { color: var(--muted); margin-bottom: 16px; font-size: 0.95rem; }
+  .modal ol { padding-left: 20px; margin: 12px 0 20px; }
+  .modal ol li { margin-bottom: 8px; font-size: 0.9rem; }
+  .modal code {
+    background: #f3f4f6;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 0.85em;
+  }
+  .modal .form-group { margin-bottom: 16px; }
+  .modal label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--text); font-size: 0.9rem; }
+  .modal textarea { min-height: 140px; font-family: Menlo, Consolas, monospace; font-size: 0.82rem; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+  .error-msg { color: var(--danger); font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  .help-link {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--primary);
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  details { margin-bottom: 16px; }
+  details summary { cursor: pointer; font-weight: 500; padding: 8px 0; color: var(--primary); }
+  details[open] summary { margin-bottom: 8px; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    h1 { font-size: 1.3rem; }
+    form { grid-template-columns: 1fr 1fr; }
+    .card { padding: 16px; }
+    th, td { padding: 8px 6px; font-size: 0.85rem; }
+    .notes-cell { max-width: 100px; }
+    .modal { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Main app -->
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <h1>Registro de Presión Arterial</h1>
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Conectando...</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="exportCSV()">Exportar CSV</button>
+      <button class="btn-secondary" onclick="exportJSON()">Backup JSON</button>
+      <button class="btn-secondary" onclick="document.getElementById('importFile').click()">Importar JSON</button>
+      <button class="btn-secondary" onclick="openSettings()">⚙️</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Nueva lectura</h2>
+    <form id="readingForm" onsubmit="addReading(event)">
+      <div class="field">
+        <label for="datetime">Fecha y hora</label>
+        <input type="datetime-local" id="datetime" required>
+      </div>
+      <div class="field">
+        <label for="systolic">Sistólica (alta)</label>
+        <input type="number" id="systolic" min="40" max="300" required placeholder="120">
+      </div>
+      <div class="field">
+        <label for="diastolic">Diastólica (baja)</label>
+        <input type="number" id="diastolic" min="20" max="200" required placeholder="80">
+      </div>
+      <div class="field">
+        <label for="pulse">Pulso (ppm)</label>
+        <input type="number" id="pulse" min="20" max="250" placeholder="70">
+      </div>
+      <div class="field field-notes">
+        <label for="notes">Notas (opcional)</label>
+        <textarea id="notes" placeholder="Después del café, antes de dormir, medicación tomada..."></textarea>
+      </div>
+      <div class="field">
+        <button type="submit" class="btn-primary" id="addBtn">Añadir lectura</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2>Evolución</h2>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--normal)"></span>Normal &lt;120/80</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--elevated)"></span>Elevada 120-129/&lt;80</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage1)"></span>HTA 1 130-139/80-89</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage2)"></span>HTA 2 ≥140/90</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--crisis)"></span>Crisis &gt;180/120</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Histórico</h2>
+    <div class="table-wrapper">
+      <table id="readingsTable">
+        <thead>
+          <tr>
+            <th data-sort="datetime" class="sorted">Fecha</th>
+            <th data-sort="systolic">Sistólica</th>
+            <th data-sort="diastolic">Diastólica</th>
+            <th data-sort="pulse">Pulso</th>
+            <th data-sort="category">Categoría</th>
+            <th>Notas</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="readingsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Setup modal -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>Configuración inicial</h2>
+    <p>Una sola vez. Después podrás añadir y ver tus lecturas sincronizadas en todos tus dispositivos.</p>
+
+    <details>
+      <summary>📋 Cómo crear tu proyecto de Firebase (paso a paso)</summary>
+      <ol>
+        <li>Abre <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> e inicia sesión con tu cuenta de Google.</li>
+        <li>Haz clic en <strong>"Añadir proyecto"</strong>. Ponle un nombre (ej: <code>mi-presion</code>). Puedes desactivar Google Analytics. Clic en "Crear proyecto".</li>
+        <li>Dentro del proyecto, en el menú izquierdo clic en <strong>"Firestore Database"</strong> → <strong>"Crear base de datos"</strong>. Elige región <code>eur3 (europe-west)</code>. Selecciona <strong>"Iniciar en modo de prueba"</strong>. Clic en "Habilitar".</li>
+        <li>Vuelve a la portada del proyecto (icono ⚙️ → "Configuración del proyecto"). Baja hasta "Tus aplicaciones" y clic en el icono <strong>&lt;/&gt;</strong> (web). Ponle un apodo (ej: <code>presion-web</code>). NO marques hosting. Clic en "Registrar aplicación".</li>
+        <li>Verás un bloque de código con <code>firebaseConfig = { ... }</code>. Copia SOLO el objeto desde <code>{</code> hasta <code>}</code> (el JSON completo con las claves).</li>
+        <li>Pégalo abajo 👇</li>
+      </ol>
+      <p style="font-size:0.85rem; margin-top:12px;"><strong>⚠️ Sobre seguridad:</strong> el modo de prueba caduca en 30 días. Antes, vuelve a Firestore → Reglas y reemplaza las reglas con <code>allow read, write: if true;</code> para mantenerlo funcionando (es personal, la clave de acceso la tienes tú). O avísame y te doy reglas más estrictas.</p>
+    </details>
+
+    <div class="form-group">
+      <label for="firebaseConfig">Configuración de Firebase (pega aquí el objeto <code>firebaseConfig</code>)</label>
+      <textarea id="firebaseConfig" placeholder='{
+  "apiKey": "...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}'></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="passphrase">Tu clave personal (inventa una)</label>
+      <input type="text" id="passphrase" placeholder="Ej: mi-salud-2026" autocomplete="off">
+      <span class="help-link" style="cursor:default; text-decoration:none; color:var(--muted)">Úsala igual en todos tus dispositivos para que sincronicen. Si la pierdes, no puedes recuperar los datos.</span>
+    </div>
+
+    <div class="error-msg" id="setupError"></div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" id="useLocalBtn" onclick="useLocalOnly()">Usar solo localmente</button>
+      <button class="btn-primary" id="connectBtn" onclick="connectFirebase()">Conectar y sincronizar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal">
+    <h2>Configuración</h2>
+    <p>Gestiona la conexión o haz backup.</p>
+    <div id="settingsInfo" style="background:#f3f4f6; padding:12px; border-radius:8px; margin-bottom:16px; font-size:0.9rem;"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cerrar</button>
+      <button class="btn-danger" style="border:1px solid var(--danger); border-radius:8px; padding:10px 18px;" onclick="resetConfig()">Cambiar configuración</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CONFIG_KEY = 'bp_sync_config_v1';
+const LOCAL_KEY = 'bp_readings_v1';
+let readings = [];
+let sortField = 'datetime';
+let sortAsc = false;
+let chart = null;
+let db = null;
+let docRef = null;
+let unsubscribe = null;
+let docId = null;
+let syncEnabled = false;
+let remoteVersion = 0;
+let isInitialLoad = true;
+
+// ---------- Utils ----------
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('syncText').textContent = text;
+}
+
+// ---------- Setup ----------
+window.useLocalOnly = function() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ mode: 'local' }));
+  syncEnabled = false;
+  loadLocalReadings();
+  showApp();
+  setSyncStatus('', 'Solo local (sin sincronización)');
+};
+
+window.connectFirebase = async function() {
+  const errEl = document.getElementById('setupError');
+  const btn = document.getElementById('connectBtn');
+  errEl.textContent = '';
+  const rawConfig = document.getElementById('firebaseConfig').value.trim();
+  const passphrase = document.getElementById('passphrase').value.trim();
+  if (!rawConfig) { errEl.textContent = 'Pega la configuración de Firebase.'; return; }
+  if (!passphrase || passphrase.length < 4) { errEl.textContent = 'Elige una clave personal de al menos 4 caracteres.'; return; }
+
+  // Try to parse. Accept both pure JSON and JS object style.
+  let config;
+  try {
+    config = JSON.parse(rawConfig);
+  } catch (e) {
+    try {
+      // Convert JS-style { key: "val" } to JSON
+      const jsonified = rawConfig
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+        .replace(/'/g, '"');
+      config = JSON.parse(jsonified);
+    } catch (e2) {
+      errEl.textContent = 'No puedo leer la configuración. Asegúrate de pegar el objeto completo desde { hasta }.';
+      return;
+    }
+  }
+  if (!config.apiKey || !config.projectId) {
+    errEl.textContent = 'Faltan campos en la configuración (apiKey y projectId son obligatorios).';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Conectando...';
+  try {
+    const hashId = await sha256(passphrase);
+    const payload = { mode: 'firebase', config, passphraseHash: hashId };
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(payload));
+    await startFirebase(config, hashId);
+    // Migrate local readings if any
+    const local = localStorage.getItem(LOCAL_KEY);
+    if (local) {
+      try {
+        const localArr = JSON.parse(local);
+        if (Array.isArray(localArr) && localArr.length > 0) {
+          const existingIds = new Set(readings.map(r => r.id));
+          let added = 0;
+          localArr.forEach(r => { if (!existingIds.has(r.id)) { readings.push(r); added++; } });
+          if (added > 0) {
+            await saveToFirebase();
+            alert('Migradas ' + added + ' lecturas que tenías guardadas localmente.');
+          }
+          localStorage.removeItem(LOCAL_KEY);
+        }
+      } catch (e) {}
+    }
+    showApp();
+  } catch (err) {
+    errEl.textContent = 'Error: ' + (err.message || err);
+    btn.disabled = false;
+    btn.textContent = 'Conectar y sincronizar';
+    localStorage.removeItem(CONFIG_KEY);
+  }
+};
+
+async function startFirebase(config, hashId) {
+  const app = initializeApp(config);
+  db = getFirestore(app);
+  try { await enableIndexedDbPersistence(db); } catch (e) { /* ignore */ }
+  docId = hashId;
+  docRef = doc(db, 'bp_data', docId);
+  syncEnabled = true;
+  setSyncStatus('syncing', 'Sincronizando...');
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        readings = Array.isArray(data.readings) ? data.readings : [];
+        remoteVersion = data.version || 0;
+      } else {
+        readings = [];
+        remoteVersion = 0;
+      }
+      setSyncStatus('connected', 'Sincronizado ✓');
+      render();
+      if (!resolved) { resolved = true; resolve(); }
+    }, (err) => {
+      setSyncStatus('error', 'Error de conexión');
+      if (!resolved) { resolved = true; reject(err); }
+    });
+    setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 5000);
+  });
+}
+
+async function saveToFirebase() {
+  if (!syncEnabled || !docRef) return;
+  setSyncStatus('syncing', 'Guardando...');
+  try {
+    remoteVersion++;
+    await setDoc(docRef, { readings, version: remoteVersion, updatedAt: new Date().toISOString() });
+    setSyncStatus('connected', 'Sincronizado ✓');
+  } catch (err) {
+    setSyncStatus('error', 'Error al guardar');
+    console.error(err);
+  }
+}
+
+function loadLocalReadings() {
+  try {
+    const data = localStorage.getItem(LOCAL_KEY);
+    readings = data ? JSON.parse(data) : [];
+  } catch (e) { readings = []; }
+}
+
+function saveLocalReadings() {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(readings));
+}
+
+async function persist() {
+  if (syncEnabled) await saveToFirebase();
+  else saveLocalReadings();
+}
+
+function showApp() {
+  document.getElementById('setupModal').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  setDefaultDateTime();
+  render();
+}
+
+// ---------- Settings ----------
+window.openSettings = function() {
+  const info = document.getElementById('settingsInfo');
+  const cfg = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+  if (cfg.mode === 'firebase') {
+    info.innerHTML = '<strong>Modo:</strong> Sincronización con Firebase<br>' +
+                     '<strong>Proyecto:</strong> ' + (cfg.config.projectId || '?') + '<br>' +
+                     '<strong>Lecturas:</strong> ' + readings.length;
+  } else {
+    info.innerHTML = '<strong>Modo:</strong> Solo local (sin sincronización)<br>' +
+                     '<strong>Lecturas:</strong> ' + readings.length;
+  }
+  document.getElementById('settingsModal').style.display = 'flex';
+};
+window.closeSettings = function() {
+  document.getElementById('settingsModal').style.display = 'none';
+};
+window.resetConfig = function() {
+  if (!confirm('¿Cambiar la configuración? Los datos siguen guardados en Firebase (o localmente); solo desconectas esta pestaña.')) return;
+  if (unsubscribe) unsubscribe();
+  localStorage.removeItem(CONFIG_KEY);
+  location.reload();
+};
+
+// ---------- Category ----------
+function categorize(sys, dia) {
+  if (sys > 180 || dia > 120) return { key: 'crisis', label: 'Crisis', class: 'badge-crisis' };
+  if (sys >= 140 || dia >= 90)  return { key: 'stage2', label: 'HTA 2', class: 'badge-stage2' };
+  if (sys >= 130 || dia >= 80)  return { key: 'stage1', label: 'HTA 1', class: 'badge-stage1' };
+  if (sys >= 120)               return { key: 'elevated', label: 'Elevada', class: 'badge-elevated' };
+  return { key: 'normal', label: 'Normal', class: 'badge-normal' };
+}
+
+// ---------- Add / delete ----------
+window.addReading = async function(e) {
+  e.preventDefault();
+  const reading = {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    datetime: document.getElementById('datetime').value,
+    systolic: parseInt(document.getElementById('systolic').value, 10),
+    diastolic: parseInt(document.getElementById('diastolic').value, 10),
+    pulse: document.getElementById('pulse').value ? parseInt(document.getElementById('pulse').value, 10) : null,
+    notes: document.getElementById('notes').value.trim()
+  };
+  readings.push(reading);
+  await persist();
+  document.getElementById('readingForm').reset();
+  setDefaultDateTime();
+  render();
+};
+
+window.deleteReading = async function(id) {
+  if (!confirm('¿Eliminar esta lectura?')) return;
+  readings = readings.filter(r => r.id !== id);
+  await persist();
+  render();
+};
+
+// ---------- Sort ----------
+window.setSort = function(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = false; }
+  render();
+};
+function sortedReadings() {
+  const arr = [...readings];
+  arr.sort((a, b) => {
+    let va, vb;
+    if (sortField === 'category') {
+      const order = { normal: 1, elevated: 2, stage1: 3, stage2: 4, crisis: 5 };
+      va = order[categorize(a.systolic, a.diastolic).key];
+      vb = order[categorize(b.systolic, b.diastolic).key];
+    } else {
+      va = a[sortField]; vb = b[sortField];
+      if (va == null) va = -Infinity;
+      if (vb == null) vb = -Infinity;
+    }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  return arr;
+}
+
+// ---------- Render ----------
+function render() {
+  renderTable();
+  renderStats();
+  renderChart();
+}
+function formatDate(dtString) {
+  const d = new Date(dtString);
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+         ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function renderTable() {
+  const tbody = document.getElementById('readingsBody');
+  const data = sortedReadings();
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.sort === sortField);
+    th.classList.toggle('asc', th.dataset.sort === sortField && sortAsc);
+  });
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Aún no hay lecturas. Añade la primera arriba.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => {
+    const cat = categorize(r.systolic, r.diastolic);
+    return `<tr>
+      <td>${formatDate(r.datetime)}</td>
+      <td><strong>${r.systolic}</strong></td>
+      <td><strong>${r.diastolic}</strong></td>
+      <td>${r.pulse ?? '—'}</td>
+      <td><span class="badge ${cat.class}">${cat.label}</span></td>
+      <td class="notes-cell">${escapeHtml(r.notes || '')}</td>
+      <td><button class="btn-danger" onclick="deleteReading('${r.id}')">Eliminar</button></td>
+    </tr>`;
+  }).join('');
+}
+function renderStats() {
+  const container = document.getElementById('stats');
+  if (readings.length === 0) { container.innerHTML = ''; return; }
+  const avg = arr => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+  const sys = readings.map(r => r.systolic);
+  const dia = readings.map(r => r.diastolic);
+  const pulses = readings.filter(r => r.pulse).map(r => r.pulse);
+  const last = [...readings].sort((a, b) => new Date(b.datetime) - new Date(a.datetime))[0];
+  const lastCat = categorize(last.systolic, last.diastolic);
+  container.innerHTML = `
+    <div class="stat">
+      <div class="stat-label">Última lectura</div>
+      <div class="stat-value">${last.systolic}/${last.diastolic}</div>
+      <div class="stat-sub"><span class="badge ${lastCat.class}">${lastCat.label}</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Promedio</div>
+      <div class="stat-value">${avg(sys)}/${avg(dia)}</div>
+      <div class="stat-sub">sobre ${readings.length} lecturas</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Máximo sistólica</div>
+      <div class="stat-value">${Math.max(...sys)}</div>
+      <div class="stat-sub">mínimo ${Math.min(...sys)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Máximo diastólica</div>
+      <div class="stat-value">${Math.max(...dia)}</div>
+      <div class="stat-sub">mínimo ${Math.min(...dia)}</div>
+    </div>
+    ${pulses.length ? `
+    <div class="stat">
+      <div class="stat-label">Pulso medio</div>
+      <div class="stat-value">${avg(pulses)}</div>
+      <div class="stat-sub">rango ${Math.min(...pulses)}–${Math.max(...pulses)}</div>
+    </div>` : ''}
+  `;
+}
+function renderChart() {
+  const ctx = document.getElementById('chart').getContext('2d');
+  const data = [...readings].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  const labels = data.map(r => formatDate(r.datetime));
+  const sys = data.map(r => r.systolic);
+  const dia = data.map(r => r.diastolic);
+  const pulse = data.map(r => r.pulse);
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Sistólica', data: sys, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.25, pointRadius: 3 },
+        { label: 'Diastólica', data: dia, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', tension: 0.25, pointRadius: 3 },
+        { label: 'Pulso', data: pulse, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.1)', tension: 0.25, pointRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+}
+
+// ---------- Export / Import ----------
+window.exportCSV = function() {
+  if (readings.length === 0) { alert('No hay datos que exportar.'); return; }
+  const header = ['Fecha', 'Sistólica', 'Diastólica', 'Pulso', 'Categoría', 'Notas'];
+  const rows = [...readings].sort((a, b) => new Date(b.datetime) - new Date(a.datetime))
+    .map(r => {
+      const cat = categorize(r.systolic, r.diastolic);
+      return [r.datetime, r.systolic, r.diastolic, r.pulse ?? '', cat.label, (r.notes || '').replace(/"/g, '""')];
+    });
+  const csv = [header, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
+  downloadFile('presion-arterial-' + todayStr() + '.csv', csv, 'text/csv');
+};
+window.exportJSON = function() {
+  const payload = { version: 1, exportedAt: new Date().toISOString(), readings };
+  downloadFile('presion-arterial-backup-' + todayStr() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+};
+window.importJSON = async function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const imported = Array.isArray(data) ? data : data.readings;
+      if (!Array.isArray(imported)) throw new Error('Formato inválido');
+      const mode = confirm('¿Fusionar con las lecturas actuales?\n\nAceptar = fusionar\nCancelar = reemplazar todo');
+      if (mode) {
+        const existingIds = new Set(readings.map(r => r.id));
+        imported.forEach(r => { if (!existingIds.has(r.id)) readings.push(r); });
+      } else {
+        readings = imported;
+      }
+      await persist();
+      render();
+      alert('Importadas ' + imported.length + ' lecturas.');
+    } catch (err) {
+      alert('Error al importar: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+};
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function setDefaultDateTime() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('datetime').value = now.toISOString().slice(0, 16);
+}
+
+// ---------- Init ----------
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => setSort(th.dataset.sort));
+});
+
+async function init() {
+  const saved = localStorage.getItem(CONFIG_KEY);
+  if (!saved) return; // show setup modal
+  try {
+    const cfg = JSON.parse(saved);
+    if (cfg.mode === 'firebase') {
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('syncing', 'Conectando...');
+      try {
+        await startFirebase(cfg.config, cfg.passphraseHash);
+        setDefaultDateTime();
+      } catch (e) {
+        setSyncStatus('error', 'Error de conexión. Revisa configuración.');
+        alert('Error al conectar con Firebase: ' + e.message + '\n\nPuedes revisar la configuración desde ⚙️.');
+      }
+    } else if (cfg.mode === 'local') {
+      syncEnabled = false;
+      loadLocalReadings();
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('', 'Solo local');
+      setDefaultDateTime();
+      render();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
