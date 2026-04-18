@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="format-detection" content="date=no">
+<title>Presión Arterial</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Presión">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230f172a'/%3E%3Ctext x='90' y='108' text-anchor='middle' fill='white' font-family='Georgia,serif' font-size='68' font-weight='700'%3EPA%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #fafafa;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --muted-2: #94a3b8;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --ink: #0f172a;
+    --accent: #1e40af;
+    --accent-hover: #1e3a8a;
+    --danger: #b91c1c;
+    --success: #15803d;
+    --warning: #b45309;
+    --crisis: #7f1d1d;
+    --stage2: #b91c1c;
+    --stage1: #c2410c;
+    --elevated: #a16207;
+    --normal: #15803d;
+  }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 28px;
+    padding-top: max(28px, env(safe-area-inset-top));
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
+    max-width: 1100px;
+    margin: 0 auto;
+    -webkit-tap-highlight-color: transparent;
+    font-size: 15px;
+  }
+  .mono, .num { font-family: "JetBrains Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .serif { font-family: "Fraunces", Georgia, serif; }
+
+  /* Header */
+  header.top {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  header.top h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+  }
+  header.top .sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .sync-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-2); }
+  .sync-dot.connected { background: var(--success); }
+  .sync-dot.syncing { background: var(--warning); animation: pulse 1s infinite; }
+  .sync-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .meta-block {
+    text-align: right;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .meta-block .label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted-2);
+    font-weight: 600;
+  }
+  .meta-block .value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 2px;
+  }
+  .person-selector {
+    display: flex; align-items: center; gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 4px 6px 4px 12px;
+    background: white;
+  }
+  .person-selector select {
+    border: none; background: transparent; font-size: 0.9rem;
+    font-family: inherit; padding: 5px 4px; cursor: pointer; font-weight: 500;
+  }
+  .person-selector select:focus { outline: none; }
+  .icon-btn {
+    background: transparent; border: 1px solid transparent; cursor: pointer;
+    padding: 6px 8px; color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .icon-btn:hover { color: var(--ink); background: #f1f5f9; }
+
+  /* Section header */
+  .section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 28px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .section-title .serif {
+    font-size: 1.25rem;
+    text-transform: none;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    font-weight: 600;
+    border: none;
+  }
+
+  /* Form */
+  form.reading-form {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    align-items: end;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-date { grid-column: span 3; }
+  .field-time { grid-column: span 3; }
+  .field-sys  { grid-column: span 2; }
+  .field-dia  { grid-column: span 2; }
+  .field-pulse { grid-column: span 2; }
+  .field-full { grid-column: 1 / -1; }
+  label {
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  input, textarea, select {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: white;
+    transition: border-color 0.15s;
+    width: 100%;
+    color: var(--ink);
+  }
+  input[type="number"] { font-family: "JetBrains Mono", monospace; font-weight: 600; }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  button {
+    padding: 10px 18px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: white;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 0;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s;
+  }
+  button:hover:not(:disabled) { background: white; color: var(--ink); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { background: white; color: var(--ink); }
+  .btn-ghost:hover:not(:disabled) { background: var(--ink); color: white; }
+  .btn-danger { background: transparent; color: var(--danger); padding: 4px 8px; font-size: 0.8rem; border: none; font-weight: 500; text-decoration: underline; letter-spacing: 0; }
+  .btn-danger:hover { color: var(--crisis); background: transparent; }
+
+  /* Chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    background: white;
+    cursor: pointer; user-select: none;
+    font-size: 0.84rem;
+    font-weight: 500;
+    transition: all 0.15s;
+    color: var(--ink);
+  }
+  .chip:hover { border-color: var(--ink); }
+  .chip.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .chip input { display: none; }
+  .chip-small { padding: 5px 10px; font-size: 0.78rem; }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 28px;
+    padding: 10px 0 6px;
+  }
+  .stat {
+    border-left: 3px solid var(--border);
+    padding-left: 14px;
+  }
+  .stat.cat-normal   { border-left-color: var(--normal); }
+  .stat.cat-elevated { border-left-color: var(--elevated); }
+  .stat.cat-stage1   { border-left-color: var(--stage1); }
+  .stat.cat-stage2   { border-left-color: var(--stage2); }
+  .stat.cat-crisis   { border-left-color: var(--crisis); }
+  .stat .label {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted); font-weight: 600; margin-bottom: 10px;
+  }
+  .stat .value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .stat .sub { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+  .stat .trend-up   { color: var(--danger); font-weight: 600; }
+  .stat .trend-down { color: var(--success); font-weight: 600; }
+  .stat .trend-flat { color: var(--muted); font-weight: 600; }
+
+  /* Time of day */
+  .tod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  .tod-cell { background: white; padding: 16px; text-align: center; }
+  .tod-cell .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+  .tod-cell .range { font-family: "JetBrains Mono", monospace; font-size: 0.72rem; color: var(--muted-2); margin-top: 3px; }
+  .tod-cell .value { font-family: "JetBrains Mono", monospace; font-size: 1.5rem; font-weight: 700; margin-top: 10px; color: var(--ink); }
+  .tod-cell .count { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  .tod-cell.empty .value { color: var(--muted-2); }
+
+  /* Chart */
+  .chart-block { margin-bottom: 4px; }
+  .chart-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+  .range-selector { display: inline-flex; border: 1px solid var(--border); }
+  .range-selector button {
+    background: white; color: var(--muted); border: none;
+    padding: 6px 14px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem; font-weight: 600;
+    border-right: 1px solid var(--border); cursor: pointer;
+    transition: background 0.1s;
+    letter-spacing: 0;
+  }
+  .range-selector button:last-child { border-right: none; }
+  .range-selector button.active { background: var(--ink); color: white; }
+  .range-selector button:hover:not(.active) { background: #f1f5f9; }
+  .chart-container { position: relative; height: 320px; background: white; border: 1px solid var(--border); padding: 16px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 0.75rem; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-item span.txt { color: inherit !important; text-decoration: none !important; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Table */
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); }
+  table.log { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  table.log th {
+    text-align: left; padding: 10px 12px;
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted); font-weight: 700;
+    border-bottom: 2px solid var(--ink);
+    background: #f8fafc;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  table.log th.sorted::after { content: " ↓"; color: var(--ink); }
+  table.log th.sorted.asc::after { content: " ↑"; }
+  table.log td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.log tr:last-child td { border-bottom: none; }
+  table.log tr:hover td { background: #f8fafc; }
+  table.log td.mono { font-family: "JetBrains Mono", monospace; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .cat-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 500; }
+  .cat-indicator .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot-normal { background: var(--normal); }
+  .dot-elevated { background: var(--elevated); }
+  .dot-stage1 { background: var(--stage1); }
+  .dot-stage2 { background: var(--stage2); }
+  .dot-crisis { background: var(--crisis); }
+  .tag {
+    display: inline-block;
+    background: #f1f5f9;
+    color: var(--muted);
+    padding: 1px 7px;
+    font-size: 0.7rem;
+    margin: 1px 3px 1px 0;
+    border-radius: 2px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .tag.med { background: #e0e7ff; color: #3730a3; }
+  .notes-cell { max-width: 200px; font-size: 0.82rem; color: var(--muted); }
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-style: italic; }
+
+  /* Footer */
+  footer.actions-footer {
+    margin-top: 40px;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    font-size: 0.75rem;
+  }
+  footer.actions-footer button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: underline;
+    cursor: pointer;
+    letter-spacing: 0;
+  }
+  footer.actions-footer button:hover { color: var(--accent); background: transparent; }
+  footer.actions-footer button.btn-pdf { text-decoration: none; border: 1px solid var(--ink); padding: 5px 14px; color: var(--ink); font-weight: 600; }
+  footer.actions-footer button.btn-pdf:hover { background: var(--ink); color: white; }
+  footer.actions-footer .sep { color: var(--border-strong); user-select: none; }
+  footer.copyright { text-align: center; font-size: 0.7rem; color: var(--muted-2); margin-top: 24px; letter-spacing: 0.05em; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
+  }
+  .modal {
+    background: white; border-radius: 0;
+    padding: 28px;
+    max-width: 640px; width: 100%;
+    max-height: 90vh; overflow-y: auto;
+    border: 1px solid var(--ink);
+  }
+  .modal h2 { font-family: "Fraunces", serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 8px; }
+  .modal p { color: var(--muted); margin-bottom: 16px; font-size: 0.9rem; }
+  .modal ol { padding-left: 20px; margin: 12px 0 20px; }
+  .modal ol li { margin-bottom: 8px; font-size: 0.88rem; }
+  .modal code { background: #f1f5f9; padding: 1px 5px; font-family: "JetBrains Mono", monospace; font-size: 0.82em; }
+  .modal .form-group { margin-bottom: 16px; }
+  .modal label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--ink); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; }
+  .modal textarea { min-height: 140px; font-family: "JetBrains Mono", monospace; font-size: 0.82rem; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+  .error-msg { color: var(--danger); font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  details { margin-bottom: 16px; border: 1px solid var(--border); padding: 12px 16px; }
+  details summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; color: var(--ink); }
+
+  /* Persons/Meds list */
+  .persons-list, .meds-list { list-style: none; padding: 0; margin: 12px 0; border: 1px solid var(--border); }
+  .persons-list li, .meds-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.9rem; gap: 8px;
+  }
+  .persons-list li:last-child, .meds-list li:last-child { border-bottom: none; }
+  .persons-list li.current { background: #f8fafc; }
+  .count-badge { color: var(--muted); font-size: 0.78rem; margin-left: 8px; font-family: "JetBrains Mono", monospace; }
+  .inline-row { display: flex; gap: 8px; align-items: center; }
+  .inline-row input { flex: 1; }
+
+  @media (max-width: 700px) {
+    body { padding: 16px; font-size: 14px; }
+    header.top h1 { font-size: 1.5rem; }
+    form.reading-form { gap: 8px; }
+    input, textarea, select { padding: 8px 10px; font-size: 0.9rem; }
+    label { font-size: 0.64rem; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 18px; }
+    .stat .value { font-size: 1.6rem; }
+    .tod-cell { padding: 12px 8px; }
+    .tod-cell .value { font-size: 1.2rem; }
+    table.log { font-size: 0.76rem; }
+    table.log th, table.log td { padding: 8px 6px; }
+    table.log th { font-size: 0.6rem; }
+    table.log .notes-cell { max-width: 80px; font-size: 0.72rem; }
+    .chip { padding: 6px 10px; font-size: 0.78rem; }
+    .modal { padding: 20px; }
+    .section-title { font-size: 0.64rem; }
+    .section-title .serif { font-size: 1.05rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app" style="display:none">
+  <header class="top">
+    <div>
+      <h1>Presión Arterial</h1>
+      <div class="sub" id="headerSub">—</div>
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">—</span>
+      </div>
+    </div>
+    <div class="header-controls">
+      <div class="meta-block">
+        <div class="label">Paciente</div>
+        <div class="value" id="headerPerson">—</div>
+      </div>
+      <div class="person-selector">
+        <select id="personSelect" onchange="selectPerson(this.value)"></select>
+        <button class="icon-btn" onclick="openPersonsModal()" title="Gestionar personas">+</button>
+      </div>
+      <button class="icon-btn" onclick="openMedsModal()" title="Medicación">℞</button>
+      <button class="icon-btn" onclick="openSettings()" title="Configuración">⚙︎</button>
+    </div>
+  </header>
+
+  <!-- NUEVA LECTURA -->
+  <div class="section-title"><span class="serif">Nueva lectura</span></div>
+  <form class="reading-form" id="readingForm" onsubmit="addReading(event)">
+    <div class="field field-date">
+      <label for="date">Fecha</label>
+      <input type="date" id="date" required>
+    </div>
+    <div class="field field-time">
+      <label for="time">Hora</label>
+      <input type="time" id="time" required>
+    </div>
+    <div class="field field-sys">
+      <label for="systolic">Sistólica</label>
+      <input type="number" id="systolic" min="40" max="300" required placeholder="120" inputmode="numeric">
+    </div>
+    <div class="field field-dia">
+      <label for="diastolic">Diastólica</label>
+      <input type="number" id="diastolic" min="20" max="200" required placeholder="80" inputmode="numeric">
+    </div>
+    <div class="field field-pulse">
+      <label for="pulse">Pulso</label>
+      <input type="number" id="pulse" min="20" max="250" placeholder="70" inputmode="numeric">
+    </div>
+    <div class="field field-full">
+      <label>Síntomas</label>
+      <div class="chips" id="symptomChips">
+        <label class="chip"><input type="checkbox" value="Tranquila"><span>Tranquila</span></label>
+        <label class="chip"><input type="checkbox" value="Animada"><span>Animada</span></label>
+        <label class="chip"><input type="checkbox" value="Cansada"><span>Cansada</span></label>
+        <label class="chip"><input type="checkbox" value="Mareada"><span>Mareada</span></label>
+        <label class="chip"><input type="checkbox" value="Nerviosa"><span>Nerviosa</span></label>
+        <label class="chip"><input type="checkbox" value="Apagada"><span>Apagada</span></label>
+        <label class="chip"><input type="checkbox" value="Otras" id="chipOtras"><span>Otras</span></label>
+      </div>
+    </div>
+    <div class="field field-full" id="otrasWrap" style="display:none">
+      <label for="otrasInput">Describe otros síntomas</label>
+      <input type="text" id="otrasInput" placeholder="Ej: dolor de cabeza, vista borrosa...">
+    </div>
+    <div class="field field-full" id="medsFieldWrap">
+      <label>Medicación tomada</label>
+      <div class="chips" id="medChips"></div>
+    </div>
+    <div class="field field-full">
+      <label for="notes">Notas (opcional)</label>
+      <textarea id="notes" placeholder="Contexto, comidas, actividad..."></textarea>
+    </div>
+    <div class="field field-full" style="text-align:right">
+      <button type="submit" id="addBtn">Añadir lectura</button>
+    </div>
+  </form>
+
+  <!-- RESUMEN -->
+  <div class="section-title"><span class="serif">Resumen estadístico</span></div>
+  <div class="stats-grid" id="stats"></div>
+
+  <!-- TENDENCIA -->
+  <div class="section-title" id="trendTitle" style="display:none"><span class="serif">Comparativa de tendencia</span></div>
+  <div class="stats-grid" id="trendGrid" style="display:none"></div>
+
+  <!-- FRANJA HORARIA -->
+  <div class="section-title"><span class="serif">Análisis por franja horaria</span></div>
+  <div class="tod-grid" id="todGrid"></div>
+
+  <!-- EVOLUCIÓN -->
+  <div class="section-title">
+    <span class="serif">Evolución</span>
+    <div class="range-selector" id="rangeSelector">
+      <button data-range="7" type="button">7D</button>
+      <button data-range="30" type="button" class="active">30D</button>
+      <button data-range="90" type="button">90D</button>
+      <button data-range="365" type="button">1A</button>
+      <button data-range="all" type="button">TODO</button>
+    </div>
+  </div>
+  <div class="chart-block">
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--normal)"></span><span class="txt">Normal</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--elevated)"></span><span class="txt">Elevada</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage1)"></span><span class="txt">HTA 1</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--stage2)"></span><span class="txt">HTA 2</span></div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--crisis)"></span><span class="txt">Crisis</span></div>
+    </div>
+  </div>
+
+  <!-- REGISTRO -->
+  <div class="section-title"><span class="serif">Registro detallado</span></div>
+  <div class="table-wrapper">
+    <table class="log" id="readingsTable">
+      <thead>
+        <tr>
+          <th data-sort="datetime" class="sorted">Fecha · Hora</th>
+          <th data-sort="systolic">SYS</th>
+          <th data-sort="diastolic">DIA</th>
+          <th data-sort="pulse">Pulso</th>
+          <th data-sort="category">Categoría</th>
+          <th>Síntomas</th>
+          <th>Medicación</th>
+          <th>Notas</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="readingsBody"></tbody>
+    </table>
+  </div>
+
+  <footer class="actions-footer">
+    <button class="btn-pdf" onclick="generatePDF()">📄 Informe PDF</button>
+    <span class="sep">·</span>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <span class="sep">·</span>
+    <button onclick="exportJSON()">Backup JSON</button>
+    <span class="sep">·</span>
+    <button onclick="document.getElementById('importFile').click()">Importar JSON</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+  </footer>
+  <footer class="copyright" id="docFooter"></footer>
+</div>
+
+<!-- Setup modal -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <h2>Configuración inicial</h2>
+    <p>Una sola vez. Después podrás añadir y ver tus lecturas sincronizadas en todos tus dispositivos.</p>
+    <details>
+      <summary>Cómo crear tu proyecto de Firebase (paso a paso)</summary>
+      <ol>
+        <li>Abre <a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> e inicia sesión con tu cuenta de Google.</li>
+        <li>Clic en <strong>"Añadir proyecto"</strong>. Nombre (ej: <code>mi-presion</code>). Desactiva Analytics. Crear.</li>
+        <li>Menú izquierdo → <strong>"Firestore Database"</strong> → <strong>"Crear base de datos"</strong>. Región <code>eur3</code>. <strong>Modo de prueba</strong>. Habilitar.</li>
+        <li>⚙ → "Configuración del proyecto" → "Tus aplicaciones" → icono <strong>&lt;/&gt;</strong>. Apodo. NO hosting. Registrar.</li>
+        <li>Copia el objeto <code>firebaseConfig = { ... }</code> entero.</li>
+        <li>Pégalo abajo.</li>
+      </ol>
+      <p style="font-size:0.82rem"><strong>Seguridad:</strong> el modo de prueba caduca en 30 días. Cambia las reglas a <code>allow read, write: if true;</code> antes.</p>
+    </details>
+    <div class="form-group">
+      <label for="firebaseConfig">Configuración de Firebase</label>
+      <textarea id="firebaseConfig" placeholder='{&#10;  "apiKey": "...",&#10;  "projectId": "...",&#10;  ...&#10;}'></textarea>
+    </div>
+    <div class="form-group">
+      <label for="passphrase">Tu clave personal</label>
+      <input type="text" id="passphrase" placeholder="Ej: mi-salud-2026" autocomplete="off">
+    </div>
+    <div class="error-msg" id="setupError"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="useLocalOnly()">Usar solo localmente</button>
+      <button id="connectBtn" onclick="connectFirebase()">Conectar y sincronizar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal">
+    <h2>Configuración</h2>
+    <div id="settingsInfo" style="background:#f8fafc; padding:14px; border:1px solid var(--border); margin-bottom:16px; font-size:0.88rem;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeSettings()">Cerrar</button>
+      <button style="border-color:var(--danger); color:var(--danger); background:white" onclick="resetConfig()">Cambiar configuración</button>
+    </div>
+  </div>
+</div>
+
+<!-- Persons modal -->
+<div class="modal-overlay" id="personsModal" style="display:none">
+  <div class="modal">
+    <h2>Pacientes</h2>
+    <p>Guarda lecturas de varias personas. Cambia desde el selector del encabezado.</p>
+    <ul class="persons-list" id="personsList"></ul>
+    <div class="form-group" style="margin-top:16px">
+      <label for="newPersonName">Añadir paciente</label>
+      <div class="inline-row">
+        <input type="text" id="newPersonName" placeholder="Nombre" maxlength="40">
+        <button onclick="addPerson()">Añadir</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closePersonsModal()">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Medications modal -->
+<div class="modal-overlay" id="medsModal" style="display:none">
+  <div class="modal">
+    <h2>Medicación</h2>
+    <p>Lista de medicamentos para <strong id="medsModalPerson"></strong>. Aparecerán como selectores al añadir una lectura.</p>
+    <ul class="meds-list" id="medsList"></ul>
+    <div class="form-group" style="margin-top:16px">
+      <label>Añadir medicamento</label>
+      <div class="inline-row">
+        <input type="text" id="newMedName" placeholder="Nombre (ej: Enalapril)" maxlength="40">
+        <input type="text" id="newMedDose" placeholder="Dosis (ej: 10 mg)" maxlength="30" style="max-width:140px">
+        <button onclick="addMedication()">Añadir</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="closeMedsModal()">Cerrar</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CONFIG_KEY = 'bp_sync_config_v1';
+const LOCAL_KEY_V2 = 'bp_data_v2';
+const LOCAL_KEY_V1 = 'bp_readings_v1';
+
+// ---------- State ----------
+let data = emptyData();
+let sortField = 'datetime';
+let sortAsc = false;
+let chart = null;
+let db = null, docRef = null, unsubscribe = null;
+let syncEnabled = false;
+let remoteVersion = 0;
+let currentRange = '30';  // 7, 30, 90, 365, all
+
+function emptyData() {
+  return { persons: [], readings: [], selectedPersonId: null };
+}
+function newId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('syncText').textContent = text;
+}
+
+// ---------- Migration ----------
+function upgradeReading(r) {
+  const out = { ...r };
+  if (r.datetime && (!r.date || !r.time)) {
+    const [d, t] = r.datetime.split('T');
+    out.date = d;
+    out.time = (t || '00:00').slice(0, 5);
+    delete out.datetime;
+  }
+  if (!out.symptoms) out.symptoms = [];
+  if (out.symptomsOther === undefined) out.symptomsOther = '';
+  if (!out.medicationIds) out.medicationIds = [];
+  return out;
+}
+function migrateIfNeeded(raw) {
+  if (!raw) return emptyData();
+  if (Array.isArray(raw.persons) && Array.isArray(raw.readings)) {
+    raw.readings = raw.readings.map(upgradeReading);
+    raw.persons = raw.persons.map(p => ({ ...p, medications: p.medications || [] }));
+    if (!raw.selectedPersonId && raw.persons.length) raw.selectedPersonId = raw.persons[0].id;
+    return raw;
+  }
+  const legacy = Array.isArray(raw) ? raw : (Array.isArray(raw.readings) ? raw.readings : []);
+  const personId = newId();
+  return {
+    persons: [{ id: personId, name: 'Yo', medications: [] }],
+    readings: legacy.map(r => ({ ...upgradeReading(r), personId })),
+    selectedPersonId: personId
+  };
+}
+function loadLocal() {
+  try {
+    const v2 = localStorage.getItem(LOCAL_KEY_V2);
+    if (v2) { data = migrateIfNeeded(JSON.parse(v2)); return; }
+    const v1 = localStorage.getItem(LOCAL_KEY_V1);
+    if (v1) { data = migrateIfNeeded(JSON.parse(v1)); saveLocal(); localStorage.removeItem(LOCAL_KEY_V1); return; }
+  } catch (e) {}
+  data = emptyData();
+}
+function saveLocal() { localStorage.setItem(LOCAL_KEY_V2, JSON.stringify(data)); }
+
+// ---------- Setup ----------
+window.useLocalOnly = function() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ mode: 'local' }));
+  syncEnabled = false;
+  loadLocal();
+  ensureAtLeastOnePerson();
+  showApp();
+  setSyncStatus('', 'Solo local (sin sincronización)');
+};
+window.connectFirebase = async function() {
+  const errEl = document.getElementById('setupError');
+  const btn = document.getElementById('connectBtn');
+  errEl.textContent = '';
+  const rawConfig = document.getElementById('firebaseConfig').value.trim();
+  const passphrase = document.getElementById('passphrase').value.trim();
+  if (!rawConfig) { errEl.textContent = 'Pega la configuración de Firebase.'; return; }
+  if (!passphrase || passphrase.length < 4) { errEl.textContent = 'Elige una clave personal de al menos 4 caracteres.'; return; }
+  let config;
+  try { config = JSON.parse(rawConfig); }
+  catch {
+    try {
+      const j = rawConfig.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":').replace(/'/g, '"');
+      config = JSON.parse(j);
+    } catch { errEl.textContent = 'No puedo leer la configuración. Pega el objeto completo desde { hasta }.'; return; }
+  }
+  if (!config.apiKey || !config.projectId) { errEl.textContent = 'Faltan apiKey y/o projectId.'; return; }
+  btn.disabled = true; btn.textContent = 'Conectando...';
+  try {
+    const hashId = await sha256(passphrase);
+    localStorage.setItem(CONFIG_KEY, JSON.stringify({ mode: 'firebase', config, passphraseHash: hashId }));
+    await startFirebase(config, hashId);
+    const localRaw = localStorage.getItem(LOCAL_KEY_V2) || localStorage.getItem(LOCAL_KEY_V1);
+    if (localRaw && data.readings.length === 0 && data.persons.length === 0) {
+      data = migrateIfNeeded(JSON.parse(localRaw));
+      ensureAtLeastOnePerson();
+      await saveToFirebase();
+      localStorage.removeItem(LOCAL_KEY_V1); localStorage.removeItem(LOCAL_KEY_V2);
+      alert('Migrados tus datos locales a la nube.');
+    } else { ensureAtLeastOnePerson(); }
+    showApp();
+  } catch (err) {
+    errEl.textContent = 'Error: ' + (err.message || err);
+    btn.disabled = false; btn.textContent = 'Conectar y sincronizar';
+    localStorage.removeItem(CONFIG_KEY);
+  }
+};
+async function startFirebase(config, hashId) {
+  const app = initializeApp(config);
+  db = getFirestore(app);
+  try { await enableIndexedDbPersistence(db); } catch {}
+  docRef = doc(db, 'bp_data', hashId);
+  syncEnabled = true;
+  setSyncStatus('syncing', 'Sincronizando...');
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.persons)) {
+          data = migrateIfNeeded({ persons: d.persons, readings: d.readings || [], selectedPersonId: d.selectedPersonId });
+        } else if (Array.isArray(d.readings)) { data = migrateIfNeeded(d.readings); }
+        else { data = emptyData(); }
+        remoteVersion = d.version || 0;
+      } else { data = emptyData(); remoteVersion = 0; }
+      setSyncStatus('connected', 'Sincronizado');
+      render();
+      if (!resolved) { resolved = true; resolve(); }
+    }, (err) => {
+      setSyncStatus('error', 'Error de conexión');
+      if (!resolved) { resolved = true; reject(err); }
+    });
+    setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 5000);
+  });
+}
+async function saveToFirebase() {
+  if (!syncEnabled || !docRef) return;
+  setSyncStatus('syncing', 'Guardando...');
+  try {
+    remoteVersion++;
+    await setDoc(docRef, {
+      persons: data.persons, readings: data.readings, selectedPersonId: data.selectedPersonId,
+      version: remoteVersion, updatedAt: new Date().toISOString()
+    });
+    setSyncStatus('connected', 'Sincronizado');
+  } catch (err) { setSyncStatus('error', 'Error al guardar'); console.error(err); }
+}
+async function persist() { if (syncEnabled) await saveToFirebase(); else saveLocal(); }
+
+function ensureAtLeastOnePerson() {
+  if (data.persons.length === 0) {
+    const id = newId();
+    data.persons.push({ id, name: 'Yo', medications: [] });
+    data.selectedPersonId = id;
+  }
+  if (!data.selectedPersonId || !data.persons.find(p => p.id === data.selectedPersonId)) {
+    const byLast = [...data.persons].sort((a, b) => lastReadingTimeFor(b.id) - lastReadingTimeFor(a.id));
+    data.selectedPersonId = byLast[0].id;
+  }
+  data.persons.forEach(p => { if (!p.medications) p.medications = []; });
+}
+function lastReadingTimeFor(pid) {
+  const arr = data.readings.filter(r => r.personId === pid);
+  if (!arr.length) return 0;
+  return Math.max(...arr.map(r => new Date(r.date + 'T' + r.time).getTime()));
+}
+function currentPerson() { return data.persons.find(p => p.id === data.selectedPersonId); }
+function currentReadings() { return data.readings.filter(r => r.personId === data.selectedPersonId); }
+
+function showApp() {
+  document.getElementById('setupModal').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  setDefaultDateTime();
+  render();
+}
+
+// ---------- Category ----------
+function categorize(sys, dia) {
+  if (sys > 180 || dia > 120) return { key: 'crisis', label: 'Crisis' };
+  if (sys >= 140 || dia >= 90)  return { key: 'stage2', label: 'HTA 2' };
+  if (sys >= 130 || dia >= 80)  return { key: 'stage1', label: 'HTA 1' };
+  if (sys >= 120)               return { key: 'elevated', label: 'Elevada' };
+  return { key: 'normal', label: 'Normal' };
+}
+
+// ---------- Add / delete ----------
+window.addReading = async function(e) {
+  e.preventDefault();
+  const symptoms = [];
+  document.querySelectorAll('#symptomChips input:checked').forEach(i => symptoms.push(i.value));
+  const medicationIds = [];
+  document.querySelectorAll('#medChips input:checked').forEach(i => medicationIds.push(i.value));
+  const reading = {
+    id: newId(),
+    personId: data.selectedPersonId,
+    date: document.getElementById('date').value,
+    time: document.getElementById('time').value,
+    systolic: parseInt(document.getElementById('systolic').value, 10),
+    diastolic: parseInt(document.getElementById('diastolic').value, 10),
+    pulse: document.getElementById('pulse').value ? parseInt(document.getElementById('pulse').value, 10) : null,
+    notes: document.getElementById('notes').value.trim(),
+    symptoms,
+    symptomsOther: document.getElementById('otrasInput').value.trim(),
+    medicationIds
+  };
+  data.readings.push(reading);
+  await persist();
+  document.getElementById('readingForm').reset();
+  resetChips();
+  setDefaultDateTime();
+  render();
+};
+window.deleteReading = async function(id) {
+  if (!confirm('¿Eliminar esta lectura?')) return;
+  data.readings = data.readings.filter(r => r.id !== id);
+  await persist();
+  render();
+};
+
+// ---------- Sort / range ----------
+window.setSort = function(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = false; }
+  render();
+};
+function setRange(r) {
+  currentRange = r;
+  document.querySelectorAll('#rangeSelector button').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === r);
+  });
+  render();
+}
+function inRange(r) {
+  if (currentRange === 'all') return true;
+  const days = parseInt(currentRange, 10);
+  const cutoff = Date.now() - days * 86400000;
+  return new Date(r.date + 'T' + r.time).getTime() >= cutoff;
+}
+function rangedReadings() { return currentReadings().filter(inRange); }
+function sortedReadings() {
+  const arr = currentReadings();
+  arr.sort((a, b) => {
+    let va, vb;
+    if (sortField === 'category') {
+      const order = { normal: 1, elevated: 2, stage1: 3, stage2: 4, crisis: 5 };
+      va = order[categorize(a.systolic, a.diastolic).key];
+      vb = order[categorize(b.systolic, b.diastolic).key];
+    } else if (sortField === 'datetime') {
+      va = new Date(a.date + 'T' + a.time).getTime();
+      vb = new Date(b.date + 'T' + b.time).getTime();
+    } else {
+      va = a[sortField]; vb = b[sortField];
+      if (va == null) va = -Infinity; if (vb == null) vb = -Infinity;
+    }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  return arr;
+}
+
+// ---------- Render core ----------
+function render() {
+  renderHeader();
+  renderPersonSelector();
+  renderMedChips();
+  renderStats();
+  renderTrend();
+  renderTimeOfDay();
+  renderChart();
+  renderTable();
+  renderFooter();
+}
+function renderHeader() {
+  const p = currentPerson();
+  const rs = currentReadings();
+  document.getElementById('headerPerson').textContent = p ? p.name : '—';
+  document.getElementById('headerSub').textContent = rs.length
+    ? `${rs.length} lectura${rs.length !== 1 ? 's' : ''} registrada${rs.length !== 1 ? 's' : ''}`
+    : 'Sin lecturas registradas';
+}
+function renderPersonSelector() {
+  const sel = document.getElementById('personSelect');
+  sel.innerHTML = data.persons.map(p =>
+    `<option value="${p.id}" ${p.id === data.selectedPersonId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
+}
+function renderMedChips() {
+  const wrap = document.getElementById('medsFieldWrap');
+  const container = document.getElementById('medChips');
+  const p = currentPerson();
+  const meds = p?.medications || [];
+  if (meds.length === 0) {
+    wrap.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'flex';
+  container.innerHTML = meds.map(m =>
+    `<label class="chip chip-small"><input type="checkbox" value="${m.id}"><span>${escapeHtml(m.name)}${m.dose ? ' · ' + escapeHtml(m.dose) : ''}</span></label>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(chip => {
+    const input = chip.querySelector('input');
+    input.addEventListener('change', () => chip.classList.toggle('active', input.checked));
+  });
+}
+function formatDate(date, time) {
+  const d = new Date(date + 'T' + (time || '00:00'));
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' · ' + (time || '');
+}
+function symptomsHtml(r) {
+  const items = [...(r.symptoms || [])];
+  if (r.symptomsOther) {
+    const idx = items.indexOf('Otras');
+    if (idx !== -1) items.splice(idx, 1, 'Otras: ' + r.symptomsOther);
+  }
+  return items.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('');
+}
+function medsHtml(r) {
+  const p = currentPerson();
+  if (!r.medicationIds || r.medicationIds.length === 0 || !p) return '';
+  return r.medicationIds.map(id => {
+    const m = p.medications.find(x => x.id === id);
+    return m ? `<span class="tag med">${escapeHtml(m.name)}</span>` : '';
+  }).join('');
+}
+
+function renderTable() {
+  const tbody = document.getElementById('readingsBody');
+  const rows = sortedReadings();
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.sort === sortField);
+    th.classList.toggle('asc', th.dataset.sort === sortField && sortAsc);
+  });
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin lecturas para este paciente.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const cat = categorize(r.systolic, r.diastolic);
+    return `<tr>
+      <td>${escapeHtml(formatDate(r.date, r.time))}</td>
+      <td class="mono">${r.systolic}</td>
+      <td class="mono">${r.diastolic}</td>
+      <td class="mono">${r.pulse ?? '—'}</td>
+      <td><span class="cat-indicator"><span class="dot dot-${cat.key}"></span>${cat.label}</span></td>
+      <td>${symptomsHtml(r)}</td>
+      <td>${medsHtml(r)}</td>
+      <td class="notes-cell">${escapeHtml(r.notes || '')}</td>
+      <td><button class="btn-danger" onclick="deleteReading('${r.id}')">Eliminar</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ---------- Chart ----------
+function renderChart() {
+  const ctx = document.getElementById('chart').getContext('2d');
+  const rs = [...rangedReadings()].sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+  const labels = rs.map(r => formatDate(r.date, r.time));
+  const sys = rs.map(r => r.systolic);
+  const dia = rs.map(r => r.diastolic);
+  const pulse = rs.map(r => r.pulse);
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Sistólica', data: sys, borderColor: '#0f172a', backgroundColor: 'rgba(15,23,42,0.05)', tension: 0.2, pointRadius: 2.5, borderWidth: 1.8 },
+        { label: 'Diastólica', data: dia, borderColor: '#64748b', backgroundColor: 'rgba(100,116,139,0.05)', tension: 0.2, pointRadius: 2.5, borderDash: [4,3], borderWidth: 1.5 },
+        { label: 'Pulso', data: pulse, borderColor: '#15803d', backgroundColor: 'rgba(21,128,61,0.05)', tension: 0.2, pointRadius: 2, borderWidth: 1.2, hidden: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12 }, color: '#64748b' } } },
+      scales: {
+        y: { beginAtZero: false, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'JetBrains Mono' }, color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#94a3b8', maxTicksLimit: 8 } }
+      }
+    }
+  });
+}
+
+function renderFooter() {
+  const now = new Date();
+  document.getElementById('docFooter').textContent =
+    `Generado ${now.toLocaleDateString('es-ES')} · ${now.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'})}`;
+}
+
+// ---------- Stats ----------
+function renderStats() {
+  const container = document.getElementById('stats');
+  const rs = rangedReadings();
+  if (rs.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted); font-style:italic; padding:20px 0">Añade tu primera lectura para ver estadísticas.</div>';
+    return;
+  }
+  const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+  const sys = rs.map(r => r.systolic);
+  const dia = rs.map(r => r.diastolic);
+  const pulses = rs.filter(r => r.pulse).map(r => r.pulse);
+  const last = [...rs].sort((a, b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time))[0];
+  const lastCat = categorize(last.systolic, last.diastolic);
+  const avgCat = categorize(avg(sys), avg(dia));
+  const maxSysCat = categorize(Math.max(...sys), 0);
+  const maxDiaCat = categorize(0, Math.max(...dia));
+  const inTarget = rs.filter(r => r.systolic < 130 && r.diastolic < 80).length;
+  const pctTarget = Math.round((inTarget / rs.length) * 100);
+
+  container.innerHTML = `
+    <div class="stat cat-${lastCat.key}">
+      <div class="label">Última lectura</div>
+      <div class="value">${last.systolic}/${last.diastolic}</div>
+      <div class="sub">${lastCat.label} · ${relativeTime(last)}</div>
+    </div>
+    <div class="stat cat-${avgCat.key}">
+      <div class="label">Promedio</div>
+      <div class="value">${avg(sys)}/${avg(dia)}</div>
+      <div class="sub">${rs.length} lecturas · ${rangeLabel()}</div>
+    </div>
+    <div class="stat cat-${maxSysCat.key}">
+      <div class="label">Máx sistólica</div>
+      <div class="value">${Math.max(...sys)}</div>
+      <div class="sub">mín ${Math.min(...sys)}</div>
+    </div>
+    <div class="stat cat-${maxDiaCat.key}">
+      <div class="label">Máx diastólica</div>
+      <div class="value">${Math.max(...dia)}</div>
+      <div class="sub">mín ${Math.min(...dia)}</div>
+    </div>
+    ${pulses.length ? `
+    <div class="stat">
+      <div class="label">Pulso medio</div>
+      <div class="value">${avg(pulses)}</div>
+      <div class="sub">rango ${Math.min(...pulses)}–${Math.max(...pulses)}</div>
+    </div>` : ''}
+    <div class="stat ${pctTarget >= 70 ? 'cat-normal' : pctTarget >= 40 ? 'cat-elevated' : 'cat-stage1'}">
+      <div class="label">% en objetivo</div>
+      <div class="value">${pctTarget}%</div>
+      <div class="sub">Target &lt; 130/80</div>
+    </div>
+  `;
+}
+function rangeLabel() {
+  return currentRange === 'all' ? 'histórico' :
+         currentRange === '365' ? 'últ. año' :
+         `últ. ${currentRange}d`;
+}
+function relativeTime(r) {
+  const diff = (Date.now() - new Date(r.date + 'T' + r.time).getTime()) / 1000;
+  if (diff < 3600) return `hace ${Math.round(diff/60)} min`;
+  if (diff < 86400) return `hace ${Math.round(diff/3600)} h`;
+  if (diff < 604800) return `hace ${Math.round(diff/86400)} d`;
+  return new Date(r.date).toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
+}
+
+// ---------- Trend (comparativa) ----------
+function renderTrend() {
+  const title = document.getElementById('trendTitle');
+  const grid = document.getElementById('trendGrid');
+  if (currentRange === 'all') { title.style.display = 'none'; grid.style.display = 'none'; return; }
+  const days = parseInt(currentRange, 10);
+  const now = Date.now();
+  const cur = currentReadings().filter(r => {
+    const t = new Date(r.date + 'T' + r.time).getTime();
+    return t >= now - days * 86400000;
+  });
+  const prev = currentReadings().filter(r => {
+    const t = new Date(r.date + 'T' + r.time).getTime();
+    return t >= now - 2 * days * 86400000 && t < now - days * 86400000;
+  });
+  if (cur.length === 0 || prev.length === 0) { title.style.display = 'none'; grid.style.display = 'none'; return; }
+  title.style.display = 'flex';
+  grid.style.display = 'grid';
+  const avg = arr => Math.round(arr.reduce((a,b) => a+b, 0) / arr.length);
+  const curSys = avg(cur.map(r => r.systolic));
+  const prevSys = avg(prev.map(r => r.systolic));
+  const curDia = avg(cur.map(r => r.diastolic));
+  const prevDia = avg(prev.map(r => r.diastolic));
+  const dSys = curSys - prevSys;
+  const dDia = curDia - prevDia;
+  grid.innerHTML = `
+    <div class="stat">
+      <div class="label">Sistólica promedio</div>
+      <div class="value">${curSys}</div>
+      <div class="sub">${trendSpan(dSys)} vs ${prevSys} anterior · ${cur.length} vs ${prev.length} lecturas</div>
+    </div>
+    <div class="stat">
+      <div class="label">Diastólica promedio</div>
+      <div class="value">${curDia}</div>
+      <div class="sub">${trendSpan(dDia)} vs ${prevDia} anterior</div>
+    </div>
+    <div class="stat">
+      <div class="label">Periodo actual</div>
+      <div class="value mono" style="font-size:1.1rem">últ. ${days}d</div>
+      <div class="sub">comparado con los ${days}d anteriores</div>
+    </div>
+  `;
+}
+function trendSpan(delta) {
+  if (delta === 0) return `<span class="trend-flat">→ 0</span>`;
+  if (delta < 0) return `<span class="trend-down">↓ ${Math.abs(delta)}</span>`;
+  return `<span class="trend-up">↑ ${delta}</span>`;
+}
+
+// ---------- Time of Day ----------
+function bucketOf(time) {
+  const h = parseInt((time || '00:00').split(':')[0], 10);
+  if (h >= 5 && h < 12) return 'manana';
+  if (h >= 12 && h < 19) return 'tarde';
+  return 'noche';
+}
+function renderTimeOfDay() {
+  const grid = document.getElementById('todGrid');
+  const rs = rangedReadings();
+  const buckets = { manana: [], tarde: [], noche: [] };
+  rs.forEach(r => buckets[bucketOf(r.time)].push(r));
+  const labels = {
+    manana: { title: 'Mañana', range: '05:00 – 11:59' },
+    tarde: { title: 'Tarde', range: '12:00 – 18:59' },
+    noche: { title: 'Noche', range: '19:00 – 04:59' }
+  };
+  const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+  grid.innerHTML = ['manana','tarde','noche'].map(k => {
+    const arr = buckets[k];
+    const sys = avg(arr.map(r => r.systolic));
+    const dia = avg(arr.map(r => r.diastolic));
+    const cls = arr.length ? '' : ' empty';
+    return `<div class="tod-cell${cls}">
+      <div class="label">${labels[k].title}</div>
+      <div class="range">${labels[k].range}</div>
+      <div class="value">${arr.length ? `${sys}/${dia}` : '—'}</div>
+      <div class="count">${arr.length} lectura${arr.length !== 1 ? 's' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- Symptom chips ----------
+function setupChipHandlers() {
+  document.querySelectorAll('#symptomChips .chip').forEach(chip => {
+    const input = chip.querySelector('input');
+    input.addEventListener('change', () => {
+      chip.classList.toggle('active', input.checked);
+      if (input.value === 'Otras') {
+        document.getElementById('otrasWrap').style.display = input.checked ? 'flex' : 'none';
+        if (!input.checked) document.getElementById('otrasInput').value = '';
+      }
+    });
+  });
+}
+function resetChips() {
+  document.querySelectorAll('#symptomChips input, #medChips input').forEach(i => { i.checked = false; });
+  document.querySelectorAll('#symptomChips .chip, #medChips .chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('otrasWrap').style.display = 'none';
+  document.getElementById('otrasInput').value = '';
+}
+
+// ---------- Persons ----------
+window.openPersonsModal = function() { renderPersonsList(); document.getElementById('personsModal').style.display = 'flex'; document.getElementById('newPersonName').focus(); };
+window.closePersonsModal = function() { document.getElementById('personsModal').style.display = 'none'; };
+function renderPersonsList() {
+  const ul = document.getElementById('personsList');
+  ul.innerHTML = data.persons.map(p => {
+    const count = data.readings.filter(r => r.personId === p.id).length;
+    const isCurrent = p.id === data.selectedPersonId;
+    return `<li class="${isCurrent ? 'current' : ''}">
+      <div><strong>${escapeHtml(p.name)}</strong><span class="count-badge">${count} lecturas</span></div>
+      <div class="inline-row">
+        <button class="btn-ghost" style="padding:4px 10px; font-size:0.78rem" onclick="renamePerson('${p.id}')">Renombrar</button>
+        ${data.persons.length > 1 ? `<button class="btn-danger" onclick="deletePerson('${p.id}')">Eliminar</button>` : ''}
+      </div>
+    </li>`;
+  }).join('');
+}
+window.addPerson = async function() {
+  const name = document.getElementById('newPersonName').value.trim();
+  if (!name) return;
+  const id = newId();
+  data.persons.push({ id, name, medications: [] });
+  data.selectedPersonId = id;
+  document.getElementById('newPersonName').value = '';
+  await persist(); render(); renderPersonsList();
+};
+window.renamePerson = async function(id) {
+  const p = data.persons.find(x => x.id === id); if (!p) return;
+  const name = prompt('Nuevo nombre:', p.name);
+  if (!name || !name.trim()) return;
+  p.name = name.trim();
+  await persist(); render(); renderPersonsList();
+};
+window.deletePerson = async function(id) {
+  const p = data.persons.find(x => x.id === id); if (!p) return;
+  const count = data.readings.filter(r => r.personId === id).length;
+  if (!confirm(count > 0 ? `¿Eliminar "${p.name}" y sus ${count} lecturas?` : `¿Eliminar "${p.name}"?`)) return;
+  data.persons = data.persons.filter(x => x.id !== id);
+  data.readings = data.readings.filter(r => r.personId !== id);
+  ensureAtLeastOnePerson();
+  await persist(); render(); renderPersonsList();
+};
+window.selectPerson = function(id) { data.selectedPersonId = id; persist(); render(); };
+
+// ---------- Medications ----------
+window.openMedsModal = function() {
+  const p = currentPerson(); if (!p) return;
+  document.getElementById('medsModalPerson').textContent = p.name;
+  renderMedsList();
+  document.getElementById('medsModal').style.display = 'flex';
+  document.getElementById('newMedName').focus();
+};
+window.closeMedsModal = function() { document.getElementById('medsModal').style.display = 'none'; };
+function renderMedsList() {
+  const p = currentPerson(); if (!p) return;
+  const ul = document.getElementById('medsList');
+  if (!p.medications.length) {
+    ul.innerHTML = '<li style="color:var(--muted); font-style:italic; justify-content:center">Sin medicamentos registrados.</li>';
+    return;
+  }
+  ul.innerHTML = p.medications.map(m => `<li>
+    <div><strong>${escapeHtml(m.name)}</strong>${m.dose ? ' · <span class="count-badge" style="margin:0">' + escapeHtml(m.dose) + '</span>' : ''}</div>
+    <div class="inline-row">
+      <button class="btn-ghost" style="padding:4px 10px; font-size:0.78rem" onclick="renameMed('${m.id}')">Editar</button>
+      <button class="btn-danger" onclick="deleteMed('${m.id}')">Eliminar</button>
+    </div>
+  </li>`).join('');
+}
+window.addMedication = async function() {
+  const p = currentPerson(); if (!p) return;
+  const name = document.getElementById('newMedName').value.trim();
+  const dose = document.getElementById('newMedDose').value.trim();
+  if (!name) return;
+  p.medications.push({ id: newId(), name, dose });
+  document.getElementById('newMedName').value = '';
+  document.getElementById('newMedDose').value = '';
+  await persist(); renderMedsList(); renderMedChips();
+};
+window.renameMed = async function(id) {
+  const p = currentPerson(); if (!p) return;
+  const m = p.medications.find(x => x.id === id); if (!m) return;
+  const name = prompt('Nombre:', m.name); if (name === null) return;
+  const dose = prompt('Dosis:', m.dose || ''); if (dose === null) return;
+  m.name = name.trim() || m.name; m.dose = dose.trim();
+  await persist(); renderMedsList(); renderMedChips(); render();
+};
+window.deleteMed = async function(id) {
+  const p = currentPerson(); if (!p) return;
+  const m = p.medications.find(x => x.id === id); if (!m) return;
+  if (!confirm(`¿Eliminar "${m.name}"? Se quitará de lecturas antiguas.`)) return;
+  p.medications = p.medications.filter(x => x.id !== id);
+  data.readings.forEach(r => {
+    if (r.medicationIds) r.medicationIds = r.medicationIds.filter(x => x !== id);
+  });
+  await persist(); renderMedsList(); renderMedChips(); render();
+};
+
+// ---------- Settings ----------
+window.openSettings = function() {
+  const info = document.getElementById('settingsInfo');
+  const cfg = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+  info.innerHTML = cfg.mode === 'firebase'
+    ? `<strong>Modo:</strong> Sincronización Firebase<br><strong>Proyecto:</strong> ${cfg.config.projectId}<br><strong>Pacientes:</strong> ${data.persons.length}<br><strong>Lecturas:</strong> ${data.readings.length}`
+    : `<strong>Modo:</strong> Solo local<br><strong>Pacientes:</strong> ${data.persons.length}<br><strong>Lecturas:</strong> ${data.readings.length}`;
+  document.getElementById('settingsModal').style.display = 'flex';
+};
+window.closeSettings = function() { document.getElementById('settingsModal').style.display = 'none'; };
+window.resetConfig = function() {
+  if (!confirm('¿Cambiar configuración? Los datos siguen guardados.')) return;
+  if (unsubscribe) unsubscribe();
+  localStorage.removeItem(CONFIG_KEY);
+  location.reload();
+};
+
+// ---------- Export ----------
+window.exportCSV = function() {
+  if (data.readings.length === 0) { alert('No hay datos que exportar.'); return; }
+  const header = ['Persona','Fecha','Hora','Sistólica','Diastólica','Pulso','Categoría','Síntomas','Medicación','Notas'];
+  const pname = id => (data.persons.find(p => p.id === id) || {}).name || '';
+  const medName = (pid, mid) => {
+    const p = data.persons.find(x => x.id === pid); if (!p) return '';
+    const m = p.medications.find(x => x.id === mid); return m ? m.name : '';
+  };
+  const rows = [...data.readings].sort((a,b) => new Date(b.date+'T'+b.time) - new Date(a.date+'T'+a.time))
+    .map(r => {
+      const cat = categorize(r.systolic, r.diastolic);
+      const syms = [...(r.symptoms || [])];
+      if (r.symptomsOther) { const i = syms.indexOf('Otras'); if (i !== -1) syms.splice(i,1,'Otras: '+r.symptomsOther); }
+      const meds = (r.medicationIds || []).map(id => medName(r.personId, id)).filter(Boolean).join('; ');
+      return [pname(r.personId), r.date, r.time, r.systolic, r.diastolic, r.pulse ?? '', cat.label, syms.join('; '), meds, (r.notes||'').replace(/"/g,'""')];
+    });
+  const csv = [header, ...rows].map(row => row.map(c => `"${c}"`).join(',')).join('\n');
+  downloadFile('presion-' + todayStr() + '.csv', csv, 'text/csv');
+};
+window.exportJSON = function() {
+  const payload = { version: 2, exportedAt: new Date().toISOString(), ...data };
+  downloadFile('presion-backup-' + todayStr() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+};
+window.importJSON = async function(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const incoming = migrateIfNeeded(parsed);
+      const merge = confirm('¿Fusionar con los datos actuales?\nAceptar = fusionar\nCancelar = reemplazar');
+      if (merge) {
+        const existingP = new Set(data.persons.map(p => p.id));
+        incoming.persons.forEach(p => { if (!existingP.has(p.id)) data.persons.push(p); });
+        const existingR = new Set(data.readings.map(r => r.id));
+        incoming.readings.forEach(r => { if (!existingR.has(r.id)) data.readings.push(r); });
+      } else { data = incoming; }
+      ensureAtLeastOnePerson();
+      await persist(); render();
+      alert('Importación completada.');
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+};
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function setDefaultDateTime() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('date').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  document.getElementById('time').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+// ---------- PDF Informe ----------
+window.generatePDF = async function() {
+  const rs = rangedReadings();
+  if (rs.length === 0) { alert('No hay lecturas en el periodo seleccionado.'); return; }
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+  const ink = [15, 23, 42];
+  const muted = [100, 116, 139];
+  const border = [226, 232, 240];
+  let y = margin;
+
+  const p = currentPerson();
+  const rangeTxt = rangeLabel().replace('últ.','Últimos');
+  const todayTxt = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' });
+
+  // Title
+  pdf.setFont('times', 'normal');
+  pdf.setFontSize(22);
+  pdf.setTextColor(...ink);
+  pdf.text('Informe de Presión Arterial', margin, y);
+  y += 6;
+  pdf.setDrawColor(...ink);
+  pdf.setLineWidth(1.5);
+  pdf.line(margin, y + 4, pageW - margin, y + 4);
+  y += 20;
+
+  // Subheader: patient + period
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.setTextColor(...muted);
+  pdf.text('PACIENTE', margin, y);
+  pdf.text('PERIODO', pageW / 2, y);
+  pdf.text('EMITIDO', pageW - margin - 90, y);
+  y += 14;
+  pdf.setFontSize(13);
+  pdf.setTextColor(...ink);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(p.name, margin, y);
+  pdf.text(rangeTxt, pageW / 2, y);
+  pdf.text(todayTxt, pageW - margin - 90, y);
+  y += 26;
+
+  // Summary section
+  y = addSectionTitle(pdf, 'Resumen estadístico', y, margin, pageW);
+  const avg = a => a.length ? Math.round(a.reduce((x,b)=>x+b,0)/a.length) : 0;
+  const sys = rs.map(r => r.systolic);
+  const dia = rs.map(r => r.diastolic);
+  const pulses = rs.filter(r => r.pulse).map(r => r.pulse);
+  const last = [...rs].sort((a,b) => new Date(b.date+'T'+b.time) - new Date(a.date+'T'+a.time))[0];
+  const lastCat = categorize(last.systolic, last.diastolic);
+  const inTarget = rs.filter(r => r.systolic < 130 && r.diastolic < 80).length;
+  const pctTarget = Math.round((inTarget / rs.length) * 100);
+
+  const stats = [
+    ['Lecturas registradas', String(rs.length)],
+    ['Última lectura', `${last.systolic}/${last.diastolic} · ${lastCat.label}`],
+    ['Promedio', `${avg(sys)}/${avg(dia)} mmHg`],
+    ['Máximo sistólica', `${Math.max(...sys)} (mín ${Math.min(...sys)})`],
+    ['Máximo diastólica', `${Math.max(...dia)} (mín ${Math.min(...dia)})`],
+    ['Pulso medio', pulses.length ? `${avg(pulses)} ppm` : 'n/d'],
+    ['% en objetivo (<130/80)', `${pctTarget}%`]
+  ];
+  pdf.setFontSize(10);
+  const colW = (pageW - 2 * margin) / 2;
+  stats.forEach((s, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const x = margin + col * colW;
+    const yy = y + row * 22;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(...muted);
+    pdf.text(s[0].toUpperCase(), x, yy);
+    pdf.setFont('courier', 'bold');
+    pdf.setTextColor(...ink);
+    pdf.setFontSize(11);
+    pdf.text(s[1], x, yy + 12);
+    pdf.setFontSize(10);
+  });
+  y += Math.ceil(stats.length / 2) * 22 + 10;
+
+  // Trend
+  if (currentRange !== 'all') {
+    const days = parseInt(currentRange, 10);
+    const now = Date.now();
+    const curArr = currentReadings().filter(r => new Date(r.date+'T'+r.time).getTime() >= now - days*86400000);
+    const prevArr = currentReadings().filter(r => {
+      const t = new Date(r.date+'T'+r.time).getTime();
+      return t >= now - 2*days*86400000 && t < now - days*86400000;
+    });
+    if (curArr.length && prevArr.length) {
+      y = addSectionTitle(pdf, 'Comparativa con periodo anterior', y, margin, pageW);
+      const cs = avg(curArr.map(r => r.systolic)), ps = avg(prevArr.map(r => r.systolic));
+      const cd = avg(curArr.map(r => r.diastolic)), pd = avg(prevArr.map(r => r.diastolic));
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(...ink);
+      const arrow = d => d === 0 ? '→' : d < 0 ? '↓' : '↑';
+      const lines = [
+        `Sistólica: ${cs} mmHg (periodo actual) vs ${ps} mmHg (anterior)   ${arrow(cs-ps)} ${Math.abs(cs-ps)}`,
+        `Diastólica: ${cd} mmHg (periodo actual) vs ${pd} mmHg (anterior)   ${arrow(cd-pd)} ${Math.abs(cd-pd)}`,
+        `Volumen: ${curArr.length} lecturas actuales vs ${prevArr.length} del periodo anterior`
+      ];
+      lines.forEach((l, i) => { pdf.text(l, margin, y + i * 14); });
+      y += lines.length * 14 + 10;
+    }
+  }
+
+  // Time of day
+  y = addSectionTitle(pdf, 'Análisis por franja horaria', y, margin, pageW);
+  const buckets = { manana: [], tarde: [], noche: [] };
+  rs.forEach(r => buckets[bucketOf(r.time)].push(r));
+  const todW = (pageW - 2 * margin) / 3;
+  const todData = [
+    { key:'manana', label:'Mañana', range:'05:00 – 11:59' },
+    { key:'tarde',  label:'Tarde',  range:'12:00 – 18:59' },
+    { key:'noche',  label:'Noche',  range:'19:00 – 04:59' }
+  ];
+  todData.forEach((b, i) => {
+    const arr = buckets[b.key];
+    const x = margin + i * todW;
+    pdf.setDrawColor(...border); pdf.setLineWidth(0.5);
+    pdf.rect(x, y, todW - 8, 56);
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(...muted);
+    pdf.text(b.label.toUpperCase(), x + 10, y + 14);
+    pdf.setFont('courier', 'normal'); pdf.setFontSize(8);
+    pdf.text(b.range, x + 10, y + 26);
+    pdf.setFont('courier', 'bold'); pdf.setFontSize(14); pdf.setTextColor(...ink);
+    const val = arr.length ? `${avg(arr.map(r=>r.systolic))}/${avg(arr.map(r=>r.diastolic))}` : '—';
+    pdf.text(val, x + 10, y + 44);
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(...muted);
+    pdf.text(`${arr.length} lectura${arr.length!==1?'s':''}`, x + 10, y + 54);
+  });
+  y += 70;
+
+  // Chart image
+  if (chart && rs.length >= 2) {
+    y = addSectionTitle(pdf, 'Evolución temporal', y, margin, pageW);
+    try {
+      const img = chart.toBase64Image('image/png', 1);
+      const imgW = pageW - 2 * margin;
+      const imgH = 160;
+      if (y + imgH > pageH - margin) { pdf.addPage(); y = margin; }
+      pdf.addImage(img, 'PNG', margin, y, imgW, imgH);
+      y += imgH + 14;
+    } catch (e) { console.warn('Chart render in PDF failed', e); }
+  }
+
+  // Table
+  if (y > pageH - 150) { pdf.addPage(); y = margin; }
+  y = addSectionTitle(pdf, 'Registro detallado', y, margin, pageW);
+  const pmeds = (p.medications || []);
+  const medName = id => (pmeds.find(m => m.id === id) || {}).name || '';
+  const body = [...rs].sort((a,b) => new Date(b.date+'T'+b.time) - new Date(a.date+'T'+a.time))
+    .map(r => {
+      const c = categorize(r.systolic, r.diastolic);
+      const syms = [...(r.symptoms || [])];
+      if (r.symptomsOther) { const i = syms.indexOf('Otras'); if (i!==-1) syms.splice(i,1,'Otras: '+r.symptomsOther); }
+      const meds = (r.medicationIds || []).map(medName).filter(Boolean).join(', ');
+      return [
+        `${r.date.slice(8,10)}/${r.date.slice(5,7)} ${r.time}`,
+        String(r.systolic), String(r.diastolic), r.pulse != null ? String(r.pulse) : '—',
+        c.label, syms.join(', '), meds, (r.notes || '').slice(0, 50)
+      ];
+    });
+
+  pdf.autoTable({
+    startY: y,
+    head: [['Fecha · Hora', 'SYS', 'DIA', 'Pulso', 'Categoría', 'Síntomas', 'Medicación', 'Notas']],
+    body,
+    theme: 'plain',
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, textColor: ink, lineColor: border, lineWidth: 0.3 },
+    headStyles: { fillColor: [248, 250, 252], textColor: muted, fontStyle: 'bold', fontSize: 7, lineWidth: { bottom: 1 }, lineColor: ink, halign: 'left' },
+    columnStyles: {
+      0: { cellWidth: 75 },
+      1: { cellWidth: 30, font: 'courier', halign: 'center' },
+      2: { cellWidth: 30, font: 'courier', halign: 'center' },
+      3: { cellWidth: 38, font: 'courier', halign: 'center' },
+      4: { cellWidth: 58 },
+      5: { cellWidth: 90, fontSize: 7 },
+      6: { cellWidth: 75, fontSize: 7 },
+      7: { cellWidth: 'auto', fontSize: 7, textColor: muted }
+    },
+    margin: { left: margin, right: margin },
+    didDrawPage: (d) => {
+      // Footer on every page
+      pdf.setFontSize(8); pdf.setTextColor(...muted); pdf.setFont('helvetica', 'normal');
+      pdf.text('Presión Arterial · Informe clínico', margin, pageH - 20);
+      pdf.text(`Página ${pdf.internal.getCurrentPageInfo().pageNumber}`, pageW - margin, pageH - 20, { align: 'right' });
+    }
+  });
+
+  const filename = `informe-presion-${p.name.toLowerCase().replace(/\s+/g,'-')}-${todayStr()}.pdf`;
+  pdf.save(filename);
+};
+
+function addSectionTitle(pdf, txt, y, margin, pageW) {
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text(txt.toUpperCase(), margin, y);
+  pdf.setDrawColor(226, 232, 240);
+  pdf.setLineWidth(0.5);
+  pdf.line(margin, y + 4, pageW - margin, y + 4);
+  return y + 16;
+}
+
+// ---------- Init ----------
+document.querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => setSort(th.dataset.sort)));
+document.querySelectorAll('#rangeSelector button').forEach(b => b.addEventListener('click', () => setRange(b.dataset.range)));
+setupChipHandlers();
+
+async function init() {
+  const saved = localStorage.getItem(CONFIG_KEY);
+  if (!saved) return;
+  try {
+    const cfg = JSON.parse(saved);
+    if (cfg.mode === 'firebase') {
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('syncing', 'Conectando...');
+      try {
+        await startFirebase(cfg.config, cfg.passphraseHash);
+        ensureAtLeastOnePerson(); setDefaultDateTime(); render();
+      } catch (e) {
+        setSyncStatus('error', 'Error de conexión');
+        alert('Error al conectar con Firebase: ' + e.message + '\n\nRevisa configuración en ⚙︎.');
+      }
+    } else if (cfg.mode === 'local') {
+      syncEnabled = false;
+      loadLocal(); ensureAtLeastOnePerson();
+      document.getElementById('setupModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      setSyncStatus('', 'Solo local'); setDefaultDateTime(); render();
+    }
+  } catch (e) { console.error(e); }
+}
+init();
+</script>
+
+</body>
+</html>
